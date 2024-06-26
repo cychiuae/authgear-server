@@ -17,6 +17,11 @@
     }
   }
 
+  :root.dark {
+    --widget__bg-color: var(--color-bg-base);
+    --widget__bg-image: ;
+  }
+
   .widget {
     width: var(--widget__width);
     max-width: var(--widget__max-width);

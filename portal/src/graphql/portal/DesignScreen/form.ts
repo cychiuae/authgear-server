@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { parse as parseCSS } from "postcss";
 import { produce } from "immer";
 import { useResourceForm } from "../../../hook/useResourceForm";
@@ -50,7 +50,6 @@ const LOCALE_BASED_RESOUCE_DEFINITIONS = [
   RESOURCE_TRANSLATION_JSON,
   RESOURCE_APP_LOGO,
   RESOURCE_FAVICON,
-  RESOURCE_APP_BACKGROUND_IMAGE,
 ];
 
 const THEME_RESOURCE_DEFINITIONS = [
@@ -127,24 +126,24 @@ export interface BranchDesignForm {
 
   setAppName: (appName: string) => void;
   setAppLogo: (
-    image: { base64EncodedData: string; extension: string } | null
+    image: { base64EncodedData: string; extension: string } | null,
   ) => void;
   setFavicon: (
-    image: { base64EncodedData: string; extension: string } | null
+    image: { base64EncodedData: string; extension: string } | null,
   ) => void;
   setCardAlignment: (alignment: Alignment) => void;
   setBackgroundColor: (color: CSSColor) => void;
   setBackgroundImage: (
-    image: { base64EncodedData: string; extension: string } | null
+    image: { base64EncodedData: string; extension: string } | null,
   ) => void;
   setPrimaryButtonBackgroundColor: (color: CSSColor) => void;
   setPrimaryButtonLabelColor: (color: CSSColor) => void;
   setPrimaryButtonBorderRadiusStyle: (
-    borderRadiusStyle: BorderRadiusStyle
+    borderRadiusStyle: BorderRadiusStyle,
   ) => void;
   setLinkColor: (color: CSSColor) => void;
   setInputFieldBorderRadiusStyle: (
-    borderRadiusStyle: BorderRadiusStyle
+    borderRadiusStyle: BorderRadiusStyle,
   ) => void;
 
   setPrivacyPolicyLink: (url: string) => void;
@@ -168,7 +167,7 @@ function constructConfigFormState(config: PortalAPIAppConfig): ConfigFormState {
 function constructConfigFromFormState(
   config: PortalAPIAppConfig,
   _initialState: ConfigFormState,
-  currentState: ConfigFormState
+  currentState: ConfigFormState,
 ): PortalAPIAppConfig {
   return produce(config, (draft) => {
     if (draft.ui == null) {
@@ -180,7 +179,7 @@ function constructConfigFromFormState(
 
 function resolveResource(
   resources: Partial<Record<string, Resource>>,
-  specifiers: [ResourceSpecifier] | ResourceSpecifier[]
+  specifiers: [ResourceSpecifier] | ResourceSpecifier[],
 ): Resource | null {
   for (const specifier of specifiers) {
     const resource = resources[specifierId(specifier)];
@@ -200,7 +199,7 @@ export function useBrandDesignForm(appID: string): BranchDesignForm {
   });
   const [selectedTheme] = useState(Theme.Light);
   const [selectedLanguage, setSelectedLanguage] = useState(
-    configForm.state.fallbackLanguage
+    configForm.state.fallbackLanguage,
   );
 
   const specifiers = useMemo<ResourceSpecifier[]>(() => {
@@ -220,7 +219,29 @@ export function useBrandDesignForm(appID: string): BranchDesignForm {
     return specifiers;
   }, [configForm.state.supportedLanguages]);
 
+  const backgroundImageSpecifiers = useMemo(() => {
+    const specifiers: ResourceSpecifier[] = [];
+    for (const locale of configForm.state.supportedLanguages) {
+      specifiers.push(...expandDef(RESOURCE_APP_BACKGROUND_IMAGE, locale));
+    }
+    return specifiers;
+  }, [configForm.state.supportedLanguages]);
+
   const resourceForm = useResourceForm(appID, specifiers);
+  const backgroundImageResourceForm = useResourceForm(
+    appID,
+    backgroundImageSpecifiers,
+  );
+
+  const getResourceFormByResourceDefinition = useCallback(
+    (def: ResourceDefinition) => {
+      if (def === RESOURCE_APP_BACKGROUND_IMAGE) {
+        return backgroundImageResourceForm;
+      }
+      return resourceForm;
+    },
+    [resourceForm, backgroundImageResourceForm],
+  );
 
   const resourcesState: ResourcesFormState = useMemo(() => {
     const getValueFromTranslationJSON = (key: string): string => {
@@ -236,7 +257,7 @@ export function useBrandDesignForm(appID: string): BranchDesignForm {
       };
       const translationResource = resolveResource(
         resourceForm.state.resources,
-        [specifier, fallbackSpecifier]
+        [specifier, fallbackSpecifier],
       );
       if (!translationResource?.nullableValue) {
         return "";
@@ -246,13 +267,11 @@ export function useBrandDesignForm(appID: string): BranchDesignForm {
     };
 
     const getValueFromImageResource = (
-      def: ResourceDefinition
+      def: ResourceDefinition,
     ): string | null => {
+      const form = getResourceFormByResourceDefinition(def);
       const specifiers = expandDef(def, selectedLanguage);
-      const imageResouece = resolveResource(
-        resourceForm.state.resources,
-        specifiers
-      );
+      const imageResouece = resolveResource(form.state.resources, specifiers);
       if (!imageResouece?.nullableValue) {
         return null;
       }
@@ -268,8 +287,8 @@ export function useBrandDesignForm(appID: string): BranchDesignForm {
                 [Theme.Light]: LightThemeResourceSpecifier,
                 [Theme.Dark]: DarkThemeResourceSpecifier,
               },
-              theme
-            )
+              theme,
+            ),
           )
         ];
       if (themeResource?.nullableValue == null) {
@@ -278,13 +297,13 @@ export function useBrandDesignForm(appID: string): BranchDesignForm {
             [Theme.Light]: DEFAULT_LIGHT_THEME,
             [Theme.Dark]: DEFAULT_DARK_THEME,
           },
-          theme
+          theme,
         );
       }
       const root = parseCSS(themeResource.nullableValue);
       const styleCSSVisitor = new StyleCssVisitor(
         getThemeTargetSelector(theme),
-        new CustomisableThemeStyleGroup()
+        new CustomisableThemeStyleGroup(),
       );
       return styleCSSVisitor.getStyle(root);
     };
@@ -297,32 +316,33 @@ export function useBrandDesignForm(appID: string): BranchDesignForm {
       appLogoBase64EncodedData: getValueFromImageResource(RESOURCE_APP_LOGO),
       faviconBase64EncodedData: getValueFromImageResource(RESOURCE_FAVICON),
       backgroundImageBase64EncodedData: getValueFromImageResource(
-        RESOURCE_APP_BACKGROUND_IMAGE
+        RESOURCE_APP_BACKGROUND_IMAGE,
       ),
       customisableTheme: selectByTheme(
         {
           [Theme.Light]: lightTheme,
           [Theme.Dark]: darkTheme,
         },
-        selectedTheme
+        selectedTheme,
       ),
       customisableLightTheme: lightTheme,
       customisableDarkTheme: darkTheme,
 
       urls: {
         privacyPolicy: getValueFromTranslationJSON(
-          TranslationKey.PrivacyPolicy
+          TranslationKey.PrivacyPolicy,
         ),
         termsOfService: getValueFromTranslationJSON(
-          TranslationKey.TermsOfService
+          TranslationKey.TermsOfService,
         ),
         customerSupport: getValueFromTranslationJSON(
-          TranslationKey.CustomerSupport
+          TranslationKey.CustomerSupport,
         ),
       },
     };
   }, [
     resourceForm,
+    getResourceFormByResourceDefinition,
     selectedLanguage,
     configForm.state.fallbackLanguage,
     selectedTheme,
@@ -345,7 +365,7 @@ export function useBrandDesignForm(appID: string): BranchDesignForm {
             };
             const translationResource = resolveResource(
               resourceForm.state.resources,
-              [specifier, fallbackSpecifier]
+              [specifier, fallbackSpecifier],
             );
             if (!translationResource?.nullableValue) {
               return;
@@ -369,9 +389,10 @@ export function useBrandDesignForm(appID: string): BranchDesignForm {
         image: {
           base64EncodedData: string;
           extension: string;
-        } | null
+        } | null,
       ) => {
-        resourceForm.setState((prev) => {
+        const form = getResourceFormByResourceDefinition(def);
+        form.setState((prev) => {
           return produce(prev, (draft) => {
             const specifiers = expandDef(def, selectedLanguage);
             for (const specifier of specifiers) {
@@ -398,7 +419,7 @@ export function useBrandDesignForm(appID: string): BranchDesignForm {
         });
       },
       updateCustomisableTheme: (
-        updater: (prev: CustomisableTheme) => CustomisableTheme
+        updater: (prev: CustomisableTheme) => CustomisableTheme,
       ) => {
         const newState = updater(resourcesState.customisableTheme);
         resourceForm.setState((s) => {
@@ -408,7 +429,7 @@ export function useBrandDesignForm(appID: string): BranchDesignForm {
                 [Theme.Light]: LightThemeResourceSpecifier,
                 [Theme.Dark]: DarkThemeResourceSpecifier,
               },
-              selectedTheme
+              selectedTheme,
             );
             const themeResource = draft.resources[
               specifierId(resourceSpecifier)
@@ -419,7 +440,7 @@ export function useBrandDesignForm(appID: string): BranchDesignForm {
 
             themeResource.nullableValue = (() => {
               const cssAstVisitor = new CssAstVisitor(
-                getThemeTargetSelector(selectedTheme)
+                getThemeTargetSelector(selectedTheme),
               );
               const styleGroup = new CustomisableThemeStyleGroup(newState);
               styleGroup.acceptCssAstVisitor(cssAstVisitor);
@@ -434,6 +455,7 @@ export function useBrandDesignForm(appID: string): BranchDesignForm {
   }, [
     resourcesState,
     resourceForm,
+    getResourceFormByResourceDefinition,
     selectedLanguage,
     selectedTheme,
     configForm.state.fallbackLanguage,
@@ -455,37 +477,55 @@ export function useBrandDesignForm(appID: string): BranchDesignForm {
       configForm.state,
       resourcesState,
       featureConfig.effectiveFeatureConfig?.ui?.white_labeling?.disabled,
-    ]
+    ],
   );
 
   const errorRules: ErrorParseRule[] = useMemo(
     () => [
       makeImageSizeTooLargeErrorRule(
-        Object.values(resourceForm.state.resources).filter(nonNullable)
+        Object.values(resourceForm.state.resources).filter(nonNullable),
       ),
     ],
-    [resourceForm.state.resources]
+    [resourceForm.state.resources],
   );
 
   const designForm = useMemo(
     (): BranchDesignForm => ({
-      isLoading: configForm.isLoading || resourceForm.isLoading,
-      isUpdating: configForm.isUpdating || resourceForm.isUpdating,
-      isDirty: configForm.isDirty || resourceForm.isDirty,
-      loadError: configForm.loadError ?? resourceForm.loadError,
-      updateError: configForm.updateError ?? resourceForm.updateError,
+      isLoading:
+        configForm.isLoading ||
+        resourceForm.isLoading ||
+        backgroundImageResourceForm.isLoading,
+      isUpdating:
+        configForm.isUpdating ||
+        resourceForm.isUpdating ||
+        backgroundImageResourceForm.isUpdating,
+      isDirty:
+        configForm.isDirty ||
+        resourceForm.isDirty ||
+        backgroundImageResourceForm.isDirty,
+      loadError:
+        configForm.loadError ??
+        resourceForm.loadError ??
+        backgroundImageResourceForm.loadError,
+      updateError:
+        configForm.updateError ??
+        resourceForm.updateError ??
+        backgroundImageResourceForm.updateError,
       state,
       reload: () => {
         configForm.reload();
         resourceForm.reload();
+        backgroundImageResourceForm.reload();
       },
       reset: () => {
         configForm.reset();
         resourceForm.reset();
+        backgroundImageResourceForm.reset();
       },
       save: async (ignoreConflict: boolean = false) => {
         await configForm.save(ignoreConflict);
         await resourceForm.save(ignoreConflict);
+        await backgroundImageResourceForm.save(ignoreConflict);
       },
       errorRules,
 
@@ -548,7 +588,7 @@ export function useBrandDesignForm(appID: string): BranchDesignForm {
         });
       },
       setPrimaryButtonBorderRadiusStyle: (
-        borderRadiusStyle: BorderRadiusStyle
+        borderRadiusStyle: BorderRadiusStyle,
       ) => {
         resourceMutator.updateCustomisableTheme((prev) => {
           return produce(prev, (draft) => {
@@ -564,7 +604,7 @@ export function useBrandDesignForm(appID: string): BranchDesignForm {
         });
       },
       setInputFieldBorderRadiusStyle: (
-        borderRadiusStyle: BorderRadiusStyle
+        borderRadiusStyle: BorderRadiusStyle,
       ) => {
         resourceMutator.updateCustomisableTheme((prev) => {
           return produce(prev, (draft) => {
@@ -579,13 +619,13 @@ export function useBrandDesignForm(appID: string): BranchDesignForm {
       setTermsOfServiceLink: (link: string) => {
         resourceMutator.setTranslationValue(
           TranslationKey.TermsOfService,
-          link
+          link,
         );
       },
       setCustomerSupportLink: (link: string) => {
         resourceMutator.setTranslationValue(
           TranslationKey.CustomerSupport,
-          link
+          link,
         );
       },
       setDisplayAuthgearLogo: (visible: boolean) => {
@@ -596,7 +636,14 @@ export function useBrandDesignForm(appID: string): BranchDesignForm {
         });
       },
     }),
-    [state, configForm, resourceForm, resourceMutator, errorRules]
+    [
+      state,
+      configForm,
+      resourceForm,
+      backgroundImageResourceForm,
+      resourceMutator,
+      errorRules,
+    ],
   );
 
   return designForm;

@@ -1,0 +1,100 @@
+{{ template "authflowv2/__settings_page_frame.html" . }}
+
+{{ define "page-navbar" }}
+  {{ template "authflowv2/__navbar.html"
+    (dict
+      "BackHref" (call $.MakeURL ( ternary "/settings" "/settings/identity/email" (empty .Requested) ))
+      "BackTitle" "Back"
+      "Title" (translate "v2.page.settings-identity-email.default.navbar-title" nil)
+    )
+  }}
+{{ end }}
+
+{{ define "page-content" }}
+
+{{ $displayEmails := .CheckedEmails }}
+{{ $hasMultiple := gt (len .CheckedEmails) 1 }}
+{{ $hasRequested := false }}
+
+{{ if .Requested }}
+  {{ $displayEmails = list (index .CheckedEmails .Requested) }}
+  {{ $hasMultiple = false }}
+  {{ $hasRequested = true }}
+{{ end }}
+
+<div class="flex flex-col gap-5">
+  <ol>
+    {{ range $index, $element := $displayEmails }}
+      <li class="settings-identity-email-block">
+        <div class="settings-identity-email-icon"></div>
+        <div class="settings-identity-email-center">
+          <div class="settings-identity-email-text">
+            {{ $element.Email }}
+          </div>
+          {{ if $element.Verified }}
+            <div class="settings-identity-email-subtext success">
+              {{ translate "v2.page.settings-identity-email.default.verified-label" . }}
+            </div>
+          {{ else }}
+            <div class="settings-identity-email-subtext failure">
+              {{ translate "v2.page.settings-identity-email.default.not-verified-label" . }}
+            </div>
+          {{ end }}
+          {{ if and ($hasRequested) (and (not $element.Verified) ($element.Verifiable)) }}
+            <div class="settings-identity-email-indent pt-2">
+              <span>
+                <button class="secondary-btn" type="submit" name="verify" {{/* value="{{ $element.identity_id }}" */}}>
+                  {{ translate "v2.page.settings-identity-email.default.verify-label" . }}
+                </button>
+              </span>
+            </div>
+          {{ end }}
+        </div>
+        {{ if $hasRequested }}
+          <a class="label-btn" href="/settings/identity/email/edit">
+            {{ translate "v2.page.settings-identity.default.edit-label" . }}
+          </a>
+        {{ else }}
+          <div class="flex items-center">
+            <a class="settings-item__forward_arrow material-icons"
+              href="/settings/identity/email/edit">
+              arrow_forward_ios
+            </a>
+          </div>
+        {{ end }}
+      </li>
+    {{ end }}
+    <li class="label-btn py-6">
+      {{ if not $hasRequested }}
+        <a href="/settings/identity/email/new">
+          {{ translate "v2.page.settings-identity-email.default.add-new-label" . }}
+        </a>
+      {{ else if $hasMultiple }}
+        <span class="settings-identity-email-remove" data-controller="settings-dialog"
+          data-action="click->settings-dialog#open">
+          Remove this email
+        </span>
+      {{ end }}
+    </li>
+  </ol>
+  {{ if $hasMultiple }}
+    <span>
+      <div class="settings-identity-email-subtitle">
+        {{ translate "v2.page.settings-identity-email.default.primary-email-label" . }}
+      </div>
+      <div class="settings-identity-email-block">
+        <div class="settings-identity-email-icon"></div>
+        <div class="settings-identity-email-center">
+          <div class="settings-identity-email-text">
+            {{ .Email }}
+          </div>
+        </div>
+        <a class="label-btn p-0" href="/settings/identity/email/primary">
+          {{ translate "v2.page.settings-identity.default.change-label" . }}
+        </a>
+      </div>
+    </span>
+  {{ end }}
+</div>
+
+{{ end }}

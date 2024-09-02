@@ -1,0 +1,96 @@
+@layer components {
+  :root {
+    --settings-identity-email-large-font-size: var(
+      --typography-label-large__font-size
+    );
+    --settings-identity-email-large-font-weight: var(
+      --typography-label-large__font-weight
+    );
+    --settings-identity-email-large-line-height: var(
+      --typography-label-large__line-height
+    );
+
+    --settings-identity-email-medium-font-size: var(
+      --typography-body-medium__font-size
+    );
+    --settings-identity-email-medium-font-weight: var(
+      --typography-body-medium__font-weight
+    );
+    --settings-identity-email-medium-line-height: var(
+      --typography-body-medium__line-height
+    );
+
+    --settings-identity-inter-font-size: var(
+      --typography-title-large__font-size
+    );
+    --settings-identity-inter-font-weight: var(
+      --typography-title-large__font-weight
+    );
+    --settings-identity-inter-line-height: var(
+      --typography-title-large__line-height
+    );
+
+    --settings-identity-email-link-color: var(--body-text__link-color);
+    --settings-identity-email-success-color: var(--color-success);
+    --settings-identity-email-failure-color: var(--color-error);
+    --settings-identity-email-remove-color: var(--color-error);
+
+    --settings-identity-email-text-color: var(--color-neutral-700);
+    --settings-identity-email-border-color: var(--color-neutral-100);
+  }
+
+  :root.dark {
+    --settings-identity-email-text-color: var(--color-neutral-100);
+    --settings-identity-email-border-color: var(--color-neutral-400);
+  }
+
+  .settings-identity-email-block {
+    @apply px-2 py-4 flex gap-2;
+    border-bottom: 1px solid var(--settings-identity-email-border-color);
+  }
+
+  .settings-identity-email-icon {
+    @apply w-6 flex justify-center;
+    @apply material-icons;
+    font-size: 21px;
+    line-height: 24px;
+    color: var(--settings-identity-email-text-color);
+
+    &::before {
+      content: "mail";
+    }
+  }
+
+  .settings-identity-email-center {
+    @apply flex-1 flex flex-col gap-1;
+  }
+
+  .settings-identity-email-text {
+    line-height: var(--settings-identity-email-large-line-height);
+    font-weight: var(--settings-identity-email-large-font-weight);
+    font-size: var(--settings-identity-email-large-font-size);
+    color: var(--settings-identity-email-text-color);
+    word-break: break-all;
+  }
+
+  .settings-identity-email-subtext {
+    line-height: var(--settings-identity-email-medium-line-height);
+    font-weight: var(--settings-identity-email-medium-font-weight);
+    font-size: var(--settings-identity-email-medium-font-size);
+
+    &.success {
+      color: var(--settings-identity-email-success-color);
+    }
+
+    &.failure {
+      color: var(--settings-identity-email-failure-color);
+    }
+  }
+
+  .settings-identity-email-subtitle {
+    line-height: var(--settings-identity-inter-line-height);
+    font-weight: var(--settings-identity-inter-font-weight);
+    font-size: var(--settings-identity-inter-font-size);
+    color: var(--settings-identity-email-text-color);
+  }
+}

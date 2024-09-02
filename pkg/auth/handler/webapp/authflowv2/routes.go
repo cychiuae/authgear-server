@@ -77,7 +77,8 @@ const (
 
 	AuthflowV2RouteFinishFlow = "/authflow/v2/finish"
 
-	AuthflowV2RouteSettingsProfile = "/settings/v2/profile"
+	AuthflowV2RouteSettingsProfile       = "/settings/v2/profile"
+	AuthflowV2RouteSettingsIdentityEmail = "/settings/identity/email"
 )
 
 type AuthflowV2NavigatorEndpointsProvider interface {

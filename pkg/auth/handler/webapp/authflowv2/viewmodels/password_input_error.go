@@ -12,6 +12,7 @@ type InputError struct {
 
 type PasswordInputErrorViewModel struct {
 	PasswordInputError        *InputError
+	NewPasswordInputError     *InputError
 	ConfirmPasswordInputError *InputError
 	HasUnknownError           bool
 }
@@ -20,6 +21,10 @@ type PasswordInputErrorViewModel struct {
 func NewPasswordInputErrorViewModel(apiError *apierrors.APIError) PasswordInputErrorViewModel {
 	viewModel := PasswordInputErrorViewModel{
 		PasswordInputError: &InputError{
+			HasError:        false,
+			HasErrorMessage: false,
+		},
+		NewPasswordInputError: &InputError{
 			HasError:        false,
 			HasErrorMessage: false,
 		},
@@ -34,8 +39,8 @@ func NewPasswordInputErrorViewModel(apiError *apierrors.APIError) PasswordInputE
 			viewModel.PasswordInputError.HasError = true
 			viewModel.PasswordInputError.HasErrorMessage = true
 		case "PasswordPolicyViolated":
-			viewModel.PasswordInputError.HasError = true
-			viewModel.PasswordInputError.HasErrorMessage = true
+			viewModel.NewPasswordInputError.HasError = true
+			viewModel.NewPasswordInputError.HasErrorMessage = true
 			viewModel.ConfirmPasswordInputError.HasError = true
 		case "NewPasswordTypo":
 			viewModel.ConfirmPasswordInputError.HasError = true
@@ -50,9 +55,12 @@ func NewPasswordInputErrorViewModel(apiError *apierrors.APIError) PasswordInputE
 									if viewmodels.SliceContains(missing, "x_password") {
 										viewModel.PasswordInputError.HasError = true
 										viewModel.PasswordInputError.HasErrorMessage = true
-									} else if viewmodels.SliceContains(missing, "x_new_password") {
+									} else if viewmodels.SliceContains(missing, "x_old_password") {
 										viewModel.PasswordInputError.HasError = true
 										viewModel.PasswordInputError.HasErrorMessage = true
+									} else if viewmodels.SliceContains(missing, "x_new_password") {
+										viewModel.NewPasswordInputError.HasError = true
+										viewModel.NewPasswordInputError.HasErrorMessage = true
 									} else if viewmodels.SliceContains(missing, "x_confirm_password") {
 										viewModel.ConfirmPasswordInputError.HasError = true
 										viewModel.ConfirmPasswordInputError.HasErrorMessage = true
@@ -65,7 +73,7 @@ func NewPasswordInputErrorViewModel(apiError *apierrors.APIError) PasswordInputE
 			}
 		}
 
-		if !viewModel.PasswordInputError.HasError && !viewModel.ConfirmPasswordInputError.HasError {
+		if !viewModel.PasswordInputError.HasError && !viewModel.NewPasswordInputError.HasError && !viewModel.ConfirmPasswordInputError.HasError {
 			// If it is not an error shown in inputs, it is an unknown error
 			viewModel.HasUnknownError = true
 		}

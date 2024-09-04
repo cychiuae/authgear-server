@@ -1,0 +1,105 @@
+@layer components {
+  :root {
+    --remove-btn__bg-color: var(--color-error);
+    --remove-btn__text-color: var(--color-white);
+    --remove-btn__border-radius: var(--border-radius-rounded-square);
+    --remove-btn__font-family: var(--typography-label-large__font-family);
+    --remove-btn__font-size: var(--typography-label-large__font-size);
+    --remove-btn__line-height: var(--typography-label-large__line-height);
+    --remove-btn__letter-spacing: var(--typography-label-large__letter-spacing);
+    --remove-btn__font-weight: var(--typography-label-large__font-weight);
+    --remove-btn__ring-width: 0;
+    --remove-btn__ring-color: transparent;
+    --remove-btn__py: 1em;
+
+    --remove-btn__px: calc(
+      (var(--remove-btn__py) * 2 + var(--remove-btn__line-height)) / 2
+    ); /* = Height / 2 */
+
+    --remove-btn__bg-color--hover: var(--color-error-dark);
+    --remove-btn__text-color--hover: var(--remove-btn__text-color);
+    --remove-btn__ring-width--hover: var(--remove-btn__ring-width);
+    --remove-btn__ring-color--hover: var(--remove-btn__ring-color);
+
+    --remove-btn__bg-color--active: var(--color-error-dark);
+    --remove-btn__text-color--active: var(--remove-btn__text-color);
+    --remove-btn__ring-width--active: var(--remove-btn__ring-width);
+    --remove-btn__ring-color--active: var(--remove-btn__ring-color);
+
+    --remove-btn__bg-color--disabled: var(--color-neutral-200);
+    --remove-btn__text-color--disabled: var(--color-neutral-400);
+    --remove-btn__ring-width--disabled: var(--remove-btn__ring-width);
+    --remove-btn__ring-color--disabled: var(--remove-btn__ring-color);
+  }
+
+  :root.dark {
+    --remove-btn__bg-color--disabled: var(--color-neutral-400);
+    --remove-btn__text-color--disabled: var(--color-neutral-100);
+
+    --remove-btn__bg-color--hover: var(--color-error-tertiary);
+    --remove-btn__bg-color--active: var(--color-error-tertiary);
+  }
+
+  .remove-btn {
+    @apply block;
+    @apply text-center;
+
+    background-color: var(--remove-btn__bg-color);
+    color: var(--remove-btn__text-color);
+    border-radius: var(--remove-btn__border-radius);
+    font-family: var(--remove-btn__font-family);
+    font-size: var(--remove-btn__font-size);
+    line-height: var(--remove-btn__line-height);
+    letter-spacing: var(--remove-btn__letter-spacing);
+    font-weight: var(--remove-btn__font-weight);
+    @apply ring-inset
+        ring-[length:var(--remove-btn\_\_ring-width)]
+        ring-[color:var(--remove-btn\_\_ring-color)];
+    padding: var(--remove-btn__py) var(--remove-btn__px);
+
+    &:hover {
+      background-color: var(--remove-btn__bg-color--hover);
+      color: var(--remove-btn__text-color--hover);
+      @apply ring-inset
+          ring-[length:var(--remove-btn\_\_ring-width--hover)]
+          ring-[color:var(--remove-btn\_\_ring-color--hover)];
+    }
+
+    &:active {
+      background-color: var(--remove-btn__bg-color--active);
+      color: var(--remove-btn__text-color--active);
+      @apply ring-inset
+          ring-[length:var(--remove-btn\_\_ring-width--active)]
+          ring-[color:var(--remove-btn\_\_ring-color--active)];
+    }
+
+    &:disabled {
+      background-color: var(--remove-btn__bg-color--disabled);
+      color: var(--remove-btn__text-color--disabled);
+      @apply ring-inset
+          ring-[length:var(--remove-btn\_\_ring-width--disabled)]
+          ring-[color:var(--remove-btn\_\_ring-color--disabled)];
+    }
+  }
+
+  .remove-btn::after {
+    @apply material-icons align-middle absolute inset-x-0 animate-spin;
+
+    font-size: calc(1.5 * var(--remove-btn__font-size)) /* 24 / 16 = 1.5 */;
+    color: var(--remove-btn__text-color--disabled);
+    height: 1em;
+    content: "progress_activity";
+  }
+
+  .remove-btn[data-loading="true"] {
+    color: transparent;
+  }
+
+  .remove-btn:not([data-loading="true"])::after {
+    @apply hidden;
+  }
+
+  .remove-btn--success {
+    background-color: var(--color-success);
+  }
+}

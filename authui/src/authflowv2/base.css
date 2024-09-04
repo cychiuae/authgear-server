@@ -31,7 +31,9 @@
   /* Colors */
   :root {
     --color-success: #11c624;
+    --color-error-dark: #c4003d;
     --color-error: #ff295b;
+    --color-error-tertiary: #c4003d; /* This is not correct. */
     --color-warning: #f39d17;
 
     /* Primary colors is generated using fluent ui theme generator */

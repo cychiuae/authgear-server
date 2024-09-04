@@ -11,6 +11,7 @@
 @import "./components/tertiary-button.css";
 @import "./components/label-button.css";
 @import "./components/link-button.css";
+@import "./components/remove-button.css";
 @import "./components/brand-logo.css";
 @import "./components/code-block.css";
 @import "./components/divider.css";
@@ -36,6 +37,7 @@
 @import "./components/settings-content.css";
 @import "./components/settings-title.css";
 @import "./components/settings-description.css";
+@import "./components/settings-dialog.css";
 @import "./components/settings-item.css";
 @import "./components/settings-text-input.css";
 @import "./components/navbar.css";

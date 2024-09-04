@@ -1,0 +1,11 @@
+@layer components {
+  .settings-dialog {
+    /* When Mobile View */
+    @apply p-8;
+
+    /* When Not Mobile View */
+    @media (min-width: theme("screens.tablet")) {
+      padding: 2.5rem;
+    }
+  }
+}

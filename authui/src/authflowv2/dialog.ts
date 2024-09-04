@@ -59,25 +59,27 @@ function dispatchDialogCloseEnd(dialogID: string) {
  */
 export class DialogController extends Controller {
   open = (e: Event) => {
-    if (!(e instanceof CustomEvent)) {
-      return;
+    if (e instanceof CustomEvent && this.element.id === e.detail.id) {
+      // close event is TS event that targets this dialog
+      this.element.classList.add("open");
     }
-    if (this.element.id !== e.detail.id) {
-      // open event targets other dialog
-      return;
+    // @ts-expect-error: The params property only exists on Stimulus events.  */
+    if (e instanceof PointerEvent && this.element.id === e.params.id) {
+      // close event is Stimulus event that targets this dialog
+      this.element.classList.add("open");
     }
-    this.element.classList.add("open");
   };
 
   close = (e: Event) => {
-    if (!(e instanceof CustomEvent)) {
-      return;
+    if (e instanceof CustomEvent && this.element.id === e.detail.id) {
+      // close event is TS event that targets this dialog
+      this.element.classList.remove("open");
     }
-    if (this.element.id !== e.detail.id) {
-      // close event targets other dialog
-      return;
+    // @ts-expect-error: The params property only exists on Stimulus events.  */
+    if (e instanceof PointerEvent && this.element.id === e.params.id) {
+      // close event is Stimulus event that targets this dialog
+      this.element.classList.remove("open");
     }
-    this.element.classList.remove("open");
   };
 
   get isOpened() {

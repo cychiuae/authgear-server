@@ -47,6 +47,7 @@ import { BotProtectionStandalonePageSubmitBtnController } from "./authflowv2/bot
 import { BotProtectionController } from "./authflowv2/botprotection/botProtection";
 import { BotProtectionDialogController } from "./authflowv2/botprotection/botProtectionDialog";
 import { DialogController } from "./authflowv2/dialog";
+import { SettingsDialogController } from "./authflowv2/settingsDialog";
 import { BotProtectionStandalonePageController } from "./authflowv2/botprotection/botProtectionStandalonePage";
 import { ImagePickerController } from "./imagepicker";
 import { SelectInputController } from "./authflowv2/selectInput";
@@ -96,6 +97,7 @@ Stimulus.register("image-picker", ImagePickerController);
 
 Stimulus.register("text-field", TextFieldController);
 Stimulus.register("dialog", DialogController);
+Stimulus.register("settings-dialog", SettingsDialogController);
 Stimulus.register("overlay", OverlayController);
 Stimulus.register("loading", LoadingController);
 Stimulus.register("new-password-field", NewPasswordFieldController);

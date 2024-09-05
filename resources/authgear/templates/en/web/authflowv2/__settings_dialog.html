@@ -9,23 +9,23 @@ template "authflowv2/__settings_dialog.html" (dict
   "Description" "Dialog description"
   "FormContent" (include "template_you_defined.html")
   "Buttons": (list
-    (dict 
+    (dict
       "Type" "Cancel"
       "Label" "Cancel"
     )
   )
-) 
+)
 -->
 
 {{ define "authflowv2/__settings_dialog.html" }}
   {{ $settingsDialogID := "settings-dialog" }}
 
-  {{ template "authflowv2/__dialog.html" 
+  {{ template "authflowv2/__dialog.html"
     (dict
       "Ctx" $.Ctx
       "ClassName" "settings-dialog"
       "DialogID" $settingsDialogID
-      "DialogContent" (include "authflowv2/__settings_dialog_content.html" 
+      "DialogContent" (include "authflowv2/__settings_dialog_content.html"
         (dict
           "Ctx" $.Ctx
           "Title" $.Title
@@ -54,7 +54,7 @@ template "authflowv2/__settings_dialog.html" (dict
     <span class="flex flex-col gap-y-4">
       {{ $.FormContent }}
       {{ range $.Buttons }}
-        <button 
+        <button
           {{ if (eq .Type "Cancel") }}
             type="button"
             class="secondary-btn"
@@ -68,6 +68,9 @@ template "authflowv2/__settings_dialog.html" (dict
             type="submit"
           {{ end }}
           value="{{ .Value }}"
+          {{ if .Event }}
+            data-authgear-event="{{ .Event }}"
+          {{ end }}
         >
           {{ .Label }}
         </button>

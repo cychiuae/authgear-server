@@ -17,23 +17,46 @@
   data-controller="authflow-passkey-creation"
   data-authflow-passkey-creation-options-value="{{ $.CreationOptionsJSON }}"
 >
+  {{ $ctx := . }}
   {{ range $.PasskeyIdentities }}
     <form
       method="post"
       class="settings-item--removable"
-      data-controller="turbo-form"
-      data-action="submit->turbo-form#submitForm"
       novalidate
     >
       <p class="settings-item__label">
         {{ .Passkey.CreationOptions.PublicKey.User.DisplayName }}
       </p>
-      <button class="settings-item__close-btn">
+      <button
+        class="settings-item__close-btn"
+        data-controller="settings-dialog"
+        data-action="click->settings-dialog#open"
+      >
         <i class="material-icons">close</i>
       </button>
       <p class="settings-description">
         {{ template "v2.page.settings-passkey.default.item-description" (dict "name" .Passkey.CreationOptions.PublicKey.User.DisplayName "time" .CreatedAt "rfc3339" (rfc3339 .CreatedAt)) }}
       </p>
+      {{ template "authflowv2/__settings_dialog.html"
+        (dict
+          "Ctx" $ctx
+          "Title" (include "v2.page.settings-passkey.default.dialog-title" nil)
+          "Description" (include "v2.page.settings-passkey.default.dialog-description" nil)
+          "FormContent" (include "remove-passkey-input" (dict "PasskeyID" .ID))
+          "Buttons"
+            (list
+              (dict
+                "Type" "Destructive"
+                "Label" (include "v2.component.button.default.label-remove" nil)
+                "Value" "remove"
+                "Event" "authgear.button.remove_passkey"
+              )
+              (dict
+                "Type" "Cancel"
+                "Label" (include "v2.component.button.default.label-cancel" nil)
+              )
+            )
+      )}}
     </form>
   {{ end }}
   <button
@@ -69,4 +92,8 @@
 
 
 </div>
+{{ end }}
+
+{{ define "remove-passkey-input"}}
+<input type="hidden" name="q_identity_id" value="{{ $.PasskeyID }}">
 {{ end }}

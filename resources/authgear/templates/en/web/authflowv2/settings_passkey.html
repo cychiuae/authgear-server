@@ -4,7 +4,7 @@
   {{ template "authflowv2/__navbar.html"
     (dict
         "BackTitle" (translate "v2.component.navbar.default.item-back-button-label" nil)
-        "BackHref" (call $.MakeURL "/settings/profile")
+        "BackHref" (call $.MakeURL "/settings")
         "Title" (translate "v2.page.settings-passkey.default.navbar-title" nil)
     )
   }}
@@ -12,7 +12,61 @@
 
 {{ define "page-content" }}
 
-<div>
-  test
+<div
+  class="flex flex-col"
+  data-controller="authflow-passkey-creation"
+  data-authflow-passkey-creation-options-value="{{ $.CreationOptionsJSON }}"
+>
+  {{ range $.PasskeyIdentities }}
+    <form
+      method="post"
+      class="settings-item--removable"
+      data-controller="turbo-form"
+      data-action="submit->turbo-form#submitForm"
+      novalidate
+    >
+      <p class="settings-item__label">
+        {{ .Passkey.CreationOptions.PublicKey.User.DisplayName }}
+      </p>
+      <button class="settings-item__close-btn">
+        <i class="material-icons">close</i>
+      </button>
+      <p class="settings-description">
+        {{ template "v2.page.settings-passkey.default.item-description" (dict "name" .Passkey.CreationOptions.PublicKey.User.DisplayName "time" .CreatedAt "rfc3339" (rfc3339 .CreatedAt)) }}
+      </p>
+    </form>
+  {{ end }}
+  <button
+    type="button"
+    class="label-btn py-6"
+    data-action="click->authflow-passkey-creation#create"
+    data-authflow-passkey-creation-target="button"
+    data-authgear-event="authgear.button.create_passkey"
+  >
+    {{ translate "v2.page.settings-passkey.default.button-label-add-passkey" nil }}
+  </button>
+  <form
+    class="hidden"
+    method="post"
+    novalidate
+    data-controller="turbo-form"
+    data-action="submit->turbo-form#submitForm"
+  >
+    {{ $.CSRFField }}
+    <input
+      type="hidden"
+      name="x_attestation_response"
+      data-authflow-passkey-creation-target="input"
+    />
+    <button
+      type="submit"
+      class="hidden"
+      name="x_action"
+      value=""
+      data-authflow-passkey-creation-target="submit">
+    </button>
+  </form>
+
+
 </div>
 {{ end }}

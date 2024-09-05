@@ -41,12 +41,21 @@ type FinishAddingInput struct {
 type FinishAddingOutput struct {
 	// It is intentionally empty.
 }
+
 type AddPasskeyInput struct {
 	Session          session.ResolvedSession
 	CreationResponse *protocol.CredentialCreationResponse
 }
-
 type AddPasskeyOutput struct {
+	// It is intentionally empty.
+}
+
+type RemovePasskeyInput struct {
+	Session    session.ResolvedSession
+	IdentityID string
+}
+
+type RemovePasskeyOutput struct {
 	// It is intentionally empty.
 }
 
@@ -74,9 +83,11 @@ type OAuthProvider interface {
 }
 
 type IdentityService interface {
+	Get(id string) (*identity.Info, error)
 	New(userID string, spec *identity.Spec, options identity.NewIdentityOptions) (*identity.Info, error)
 	CheckDuplicated(info *identity.Info) (dupe *identity.Info, err error)
 	Create(info *identity.Info) error
+	Delete(is *identity.Info) error
 }
 
 type EventService interface {
@@ -343,20 +354,54 @@ func (s *Service) AddPasskey(input *AddPasskeyInput) (*AddPasskeyOutput, error) 
 		return nil, err
 	}
 
-	err = s.Identities.Create(identityInfo)
-	if err != nil {
-		return nil, err
-	}
-
-	err = s.Authenticators.Create(authenticatorInfo, false)
-	if err != nil {
-		return nil, err
-	}
-
-	err = s.PasskeyService.ConsumeAttestationResponse(creationResponseBytes)
+	err = s.Database.WithTx(func() error {
+		err = s.Identities.Create(identityInfo)
+		if err != nil {
+			return err
+		}
+		err = s.Authenticators.Create(authenticatorInfo, false)
+		if err != nil {
+			return err
+		}
+		err = s.PasskeyService.ConsumeAttestationResponse(creationResponseBytes)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
 
 	return &AddPasskeyOutput{}, nil
+}
+
+func (s *Service) RemovePasskey(input *RemovePasskeyInput) (*RemovePasskeyOutput, error) {
+	identityID := input.IdentityID
+	identityInfo, err := s.Identities.Get(identityID)
+	if err != nil {
+		return nil, err
+	}
+
+	if identityInfo.UserID != input.Session.GetAuthenticationInfo().UserID {
+		return nil, api.NewInvariantViolated(
+			"IdentityNotBelongToUser",
+			"identity does not belong to the user",
+			nil,
+		)
+	}
+
+	err = s.Database.WithTx(func() error {
+		err := s.Identities.Delete(identityInfo)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &RemovePasskeyOutput{}, nil
 }

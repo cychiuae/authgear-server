@@ -126,4 +126,26 @@ func (h *AuthflowV2SettingsChangePasskeyHandler) ServeHTTP(w http.ResponseWriter
 		return nil
 
 	})
+
+	ctrl.PostAction("remove", func() error {
+		identityID := r.Form.Get("q_identity_id")
+
+		s := session.GetSession(r.Context())
+
+		input := &accountmanagement.RemovePasskeyInput{
+			Session:    s,
+			IdentityID: identityID,
+		}
+
+		_, err = h.AccountmanagementService.RemovePasskey(input)
+		if err != nil {
+			return err
+		}
+
+		redirectURI := httputil.HostRelative(r.URL).String()
+		result := webapp.Result{RedirectURI: redirectURI}
+		result.WriteResponse(w, r)
+
+		return nil
+	})
 }

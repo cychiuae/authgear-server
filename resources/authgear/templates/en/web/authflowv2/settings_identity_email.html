@@ -4,7 +4,7 @@
   {{ template "authflowv2/__navbar.html"
     (dict
       "BackHref" (call $.MakeURL ( ternary "/settings" "/settings/identity/email" (empty .Requested) ))
-      "BackTitle" "Back"
+      "BackTitle" (translate "v2.component.navbar.default.item-back-button-label" nil)
       "Title" (translate "v2.page.settings-identity-email.default.navbar-title" nil)
     )
   }}

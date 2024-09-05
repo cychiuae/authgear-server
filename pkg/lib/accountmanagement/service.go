@@ -1,7 +1,10 @@
 package accountmanagement
 
 import (
+	"encoding/json"
+
 	"github.com/authgear/oauthrelyingparty/pkg/api/oauthrelyingparty"
+	"github.com/go-webauthn/webauthn/protocol"
 
 	"github.com/authgear/authgear-server/pkg/api"
 	"github.com/authgear/authgear-server/pkg/api/event"
@@ -14,6 +17,7 @@ import (
 	"github.com/authgear/authgear-server/pkg/lib/facade"
 	"github.com/authgear/authgear-server/pkg/lib/infra/db/appdb"
 	"github.com/authgear/authgear-server/pkg/lib/session"
+	"github.com/authgear/authgear-server/pkg/util/uuid"
 )
 
 type StartAddingInput struct {
@@ -35,6 +39,14 @@ type FinishAddingInput struct {
 }
 
 type FinishAddingOutput struct {
+	// It is intentionally empty.
+}
+type AddPasskeyInput struct {
+	Session          session.ResolvedSession
+	CreationResponse *protocol.CredentialCreationResponse
+}
+
+type AddPasskeyOutput struct {
 	// It is intentionally empty.
 }
 
@@ -71,11 +83,17 @@ type EventService interface {
 	DispatchEventOnCommit(payload event.Payload) error
 }
 
+type PasskeyService interface {
+	ConsumeAttestationResponse(attestationResponse []byte) (err error)
+}
+
 type AuthenticatorService interface {
 	List(userID string, filters ...authenticator.Filter) ([]*authenticator.Info, error)
 	Update(authenticatorInfo *authenticator.Info) error
 	UpdatePassword(authenticatorInfo *authenticator.Info, options *service.UpdatePasswordOptions) (changed bool, info *authenticator.Info, err error)
 	VerifyWithSpec(info *authenticator.Info, spec *authenticator.Spec, options *facade.VerifyOptions) (verifyResult *service.VerifyResult, err error)
+	NewWithAuthenticatorID(authenticatorID string, spec *authenticator.Spec) (*authenticator.Info, error)
+	Create(authenticatorInfo *authenticator.Info, markVerified bool) error
 }
 
 type AuthenticationInfoService interface {
@@ -95,6 +113,7 @@ type Service struct {
 	Authenticators            AuthenticatorService
 	AuthenticationInfoService AuthenticationInfoService
 	UIInfoResolver            SettingsDeleteAccountSuccessUIInfoResolver
+	PasskeyService            PasskeyService
 }
 
 func (s *Service) StartAdding(input *StartAddingInput) (*StartAddingOutput, error) {
@@ -289,4 +308,55 @@ func (s *Service) ChangePassword(input *ChangePasswordInput) (*ChangePasswordOut
 
 	return &ChangePasswordOutput{RedirectURI: redirectURI}, nil
 
+}
+
+func (s *Service) AddPasskey(input *AddPasskeyInput) (*AddPasskeyOutput, error) {
+	userID := input.Session.GetAuthenticationInfo().UserID
+	creationResponse := input.CreationResponse
+	creationResponseBytes, err := json.Marshal(creationResponse)
+	if err != nil {
+		return nil, err
+	}
+
+	authenticatorSpec := &authenticator.Spec{
+		UserID: userID,
+		Kind:   authenticator.KindPrimary,
+		Type:   model.AuthenticatorTypePasskey,
+		Passkey: &authenticator.PasskeySpec{
+			AttestationResponse: creationResponseBytes,
+		},
+	}
+	authenticatorID := uuid.New()
+	authenticatorInfo, err := s.Authenticators.NewWithAuthenticatorID(authenticatorID, authenticatorSpec)
+	if err != nil {
+		return nil, err
+	}
+
+	identitySpec := &identity.Spec{
+		Type: model.IdentityTypePasskey,
+		Passkey: &identity.PasskeySpec{
+			AttestationResponse: creationResponseBytes,
+		},
+	}
+	identityInfo, err := s.Identities.New(userID, identitySpec, identity.NewIdentityOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	err = s.Identities.Create(identityInfo)
+	if err != nil {
+		return nil, err
+	}
+
+	err = s.Authenticators.Create(authenticatorInfo, false)
+	if err != nil {
+		return nil, err
+	}
+
+	err = s.PasskeyService.ConsumeAttestationResponse(creationResponseBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	return &AddPasskeyOutput{}, nil
 }

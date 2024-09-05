@@ -291,7 +291,6 @@ var CommonDependencySet = wire.NewSet(
 		wire.Bind(new(workflow.AuthenticatorService), new(facade.AuthenticatorFacade)),
 		wire.Bind(new(authenticationflow.AuthenticatorService), new(facade.AuthenticatorFacade)),
 		wire.Bind(new(forgotpassword.AuthenticatorService), new(facade.AuthenticatorFacade)),
-		wire.Bind(new(accountmanagement.AuthenticatorService), new(facade.AuthenticatorFacade)),
 		wire.Bind(new(workflow.IdentityService), new(facade.IdentityFacade)),
 		wire.Bind(new(workflow.VerificationService), new(facade.WorkflowVerificationFacade)),
 		wire.Bind(new(workflow.MFAService), new(*facade.MFAFacade)),
@@ -301,6 +300,7 @@ var CommonDependencySet = wire.NewSet(
 		wire.Bind(new(interaction.MFAService), new(*facade.MFAFacade)),
 		wire.Bind(new(userimport.IdentityService), new(*facade.IdentityFacade)),
 		wire.Bind(new(userimport.AuthenticatorService), new(*facade.AuthenticatorFacade)),
+		wire.Bind(new(accountmanagement.AuthenticatorService), new(*facade.AuthenticatorFacade)),
 		wire.Bind(new(accountmanagement.IdentityService), new(*facade.IdentityFacade)),
 		wire.Bind(new(oauth.AccessTokenEncodingIdentityService), new(*facade.IdentityFacade)),
 	),
@@ -534,6 +534,7 @@ var CommonDependencySet = wire.NewSet(
 		wire.Bind(new(authenticationflow.PasskeyRequestOptionsService), new(*featurepasskey.RequestOptionsService)),
 		wire.Bind(new(authenticationflow.PasskeyCreationOptionsService), new(*featurepasskey.CreationOptionsService)),
 		wire.Bind(new(authenticationflow.PasskeyService), new(*featurepasskey.Service)),
+		wire.Bind(new(accountmanagement.PasskeyService), new(*featurepasskey.Service)),
 	),
 
 	wire.NewSet(

@@ -4,11 +4,16 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/go-webauthn/webauthn/protocol"
+
 	"github.com/authgear/authgear-server/pkg/api/model"
 	handlerwebapp "github.com/authgear/authgear-server/pkg/auth/handler/webapp"
 	"github.com/authgear/authgear-server/pkg/auth/handler/webapp/viewmodels"
+	"github.com/authgear/authgear-server/pkg/auth/webapp"
+	"github.com/authgear/authgear-server/pkg/lib/accountmanagement"
 	"github.com/authgear/authgear-server/pkg/lib/authn/identity"
 	"github.com/authgear/authgear-server/pkg/lib/session"
+	"github.com/authgear/authgear-server/pkg/util/httputil"
 	"github.com/authgear/authgear-server/pkg/util/template"
 )
 
@@ -27,11 +32,12 @@ type PasskeyCreationOptionsService interface {
 }
 
 type AuthflowV2SettingsChangePasskeyHandler struct {
-	ControllerFactory handlerwebapp.ControllerFactory
-	BaseViewModel     *viewmodels.BaseViewModeler
-	Renderer          handlerwebapp.Renderer
-	Identities        handlerwebapp.SettingsIdentityService
-	Passkey           PasskeyCreationOptionsService
+	ControllerFactory        handlerwebapp.ControllerFactory
+	BaseViewModel            *viewmodels.BaseViewModeler
+	Renderer                 handlerwebapp.Renderer
+	Identities               handlerwebapp.SettingsIdentityService
+	AccountmanagementService *accountmanagement.Service
+	Passkey                  PasskeyCreationOptionsService
 }
 
 func (h *AuthflowV2SettingsChangePasskeyHandler) GetData(r *http.Request, rw http.ResponseWriter) (map[string]interface{}, error) {
@@ -90,5 +96,34 @@ func (h *AuthflowV2SettingsChangePasskeyHandler) ServeHTTP(w http.ResponseWriter
 		h.Renderer.RenderHTML(w, r, TemplateSettingsV2PasskeyHTML, data)
 
 		return nil
+	})
+
+	ctrl.PostAction("add", func() error {
+		attestationResponseStr := r.Form.Get("x_attestation_response")
+
+		var creationResponse protocol.CredentialCreationResponse
+		err := json.Unmarshal([]byte(attestationResponseStr), &creationResponse)
+		if err != nil {
+			return err
+		}
+
+		s := session.GetSession(r.Context())
+
+		input := &accountmanagement.AddPasskeyInput{
+			Session:          s,
+			CreationResponse: &creationResponse,
+		}
+
+		_, err = h.AccountmanagementService.AddPasskey(input)
+		if err != nil {
+			return err
+		}
+
+		redirectURI := httputil.HostRelative(r.URL).String()
+		result := webapp.Result{RedirectURI: redirectURI}
+		result.WriteResponse(w, r)
+
+		return nil
+
 	})
 }

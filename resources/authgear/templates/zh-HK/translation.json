@@ -1112,6 +1112,7 @@
   "v2.page.select-account.default.description": "您正在使用 {email_is_present,select,true{{email}} other{{phone_number_is_present,select,true{{phone_number}} other{{preferred_username}}}}} 登入。",
   "v2.page.select-account.default.title": "登入 {AppOrClientName}",
   "v2.page.select-account.default.use-another-account": "使用另一個帳戶",
+  "v2.page.settings-change-password.default.navbar-title": "更改密碼",
   "v2.page.settings-profile-edit-address.default.country-label": "國家",
   "v2.page.settings-profile-edit-address.default.locality-label": "城市",
   "v2.page.settings-profile-edit-address.default.navbar-title": "地址",

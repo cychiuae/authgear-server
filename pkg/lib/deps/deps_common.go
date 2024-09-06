@@ -104,6 +104,7 @@ var CommonDependencySet = wire.NewSet(
 		wire.Bind(new(workflow.AuthenticationInfoService), new(*authenticationinfo.StoreRedis)),
 		wire.Bind(new(authenticationflow.AuthenticationInfoService), new(*authenticationinfo.StoreRedis)),
 		wire.Bind(new(oauthhandler.AuthenticationInfoService), new(*authenticationinfo.StoreRedis)),
+		wire.Bind(new(accountmanagement.AuthenticationInfoService), new(*authenticationinfo.StoreRedis)),
 		wire.Bind(new(handlersaml.SAMLAuthenticationInfoService), new(*authenticationinfo.StoreRedis)),
 
 		wire.Bind(new(oauthhandler.AuthenticationInfoResolver), new(*authenticationinfo.UIService)),
@@ -290,6 +291,7 @@ var CommonDependencySet = wire.NewSet(
 		wire.Bind(new(workflow.AuthenticatorService), new(facade.AuthenticatorFacade)),
 		wire.Bind(new(authenticationflow.AuthenticatorService), new(facade.AuthenticatorFacade)),
 		wire.Bind(new(forgotpassword.AuthenticatorService), new(facade.AuthenticatorFacade)),
+		wire.Bind(new(accountmanagement.AuthenticatorService), new(facade.AuthenticatorFacade)),
 		wire.Bind(new(workflow.IdentityService), new(facade.IdentityFacade)),
 		wire.Bind(new(workflow.VerificationService), new(facade.WorkflowVerificationFacade)),
 		wire.Bind(new(workflow.MFAService), new(*facade.MFAFacade)),

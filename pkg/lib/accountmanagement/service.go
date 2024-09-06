@@ -3,11 +3,17 @@ package accountmanagement
 import (
 	"github.com/authgear/oauthrelyingparty/pkg/api/oauthrelyingparty"
 
+	"github.com/authgear/authgear-server/pkg/api"
 	"github.com/authgear/authgear-server/pkg/api/event"
 	"github.com/authgear/authgear-server/pkg/api/event/nonblocking"
 	"github.com/authgear/authgear-server/pkg/api/model"
+	"github.com/authgear/authgear-server/pkg/lib/authn/authenticationinfo"
+	"github.com/authgear/authgear-server/pkg/lib/authn/authenticator"
+	"github.com/authgear/authgear-server/pkg/lib/authn/authenticator/service"
 	"github.com/authgear/authgear-server/pkg/lib/authn/identity"
+	"github.com/authgear/authgear-server/pkg/lib/facade"
 	"github.com/authgear/authgear-server/pkg/lib/infra/db/appdb"
+	"github.com/authgear/authgear-server/pkg/lib/session"
 )
 
 type StartAddingInput struct {
@@ -32,6 +38,18 @@ type FinishAddingOutput struct {
 	// It is intentionally empty.
 }
 
+type ChangePasswordInput struct {
+	Session        session.ResolvedSession
+	OAuthSessionID string
+	RedirectURI    string
+	OldPassword    string
+	NewPassword    string
+}
+
+type ChangePasswordOutput struct {
+	RedirectURI string
+}
+
 type Store interface {
 	GenerateToken(options GenerateTokenOptions) (string, error)
 	ConsumeToken(tokenStr string) (*Token, error)
@@ -53,12 +71,30 @@ type EventService interface {
 	DispatchEventOnCommit(payload event.Payload) error
 }
 
+type AuthenticatorService interface {
+	List(userID string, filters ...authenticator.Filter) ([]*authenticator.Info, error)
+	Update(authenticatorInfo *authenticator.Info) error
+	UpdatePassword(authenticatorInfo *authenticator.Info, options *service.UpdatePasswordOptions) (changed bool, info *authenticator.Info, err error)
+	VerifyWithSpec(info *authenticator.Info, spec *authenticator.Spec, options *facade.VerifyOptions) (verifyResult *service.VerifyResult, err error)
+}
+
+type AuthenticationInfoService interface {
+	Save(entry *authenticationinfo.Entry) error
+}
+
+type SettingsDeleteAccountSuccessUIInfoResolver interface {
+	SetAuthenticationInfoInQuery(redirectURI string, e *authenticationinfo.Entry) string
+}
+
 type Service struct {
-	Database      *appdb.Handle
-	Store         Store
-	OAuthProvider OAuthProvider
-	Identities    IdentityService
-	Events        EventService
+	Database                  *appdb.Handle
+	Store                     Store
+	OAuthProvider             OAuthProvider
+	Identities                IdentityService
+	Events                    EventService
+	Authenticators            AuthenticatorService
+	AuthenticationInfoService AuthenticationInfoService
+	UIInfoResolver            SettingsDeleteAccountSuccessUIInfoResolver
 }
 
 func (s *Service) StartAdding(input *StartAddingInput) (*StartAddingOutput, error) {
@@ -183,4 +219,82 @@ func (s *Service) FinishAdding(input *FinishAddingInput) (*FinishAddingOutput, e
 	}
 
 	return &FinishAddingOutput{}, nil
+}
+
+// If have OAuthSessionID, it means the user is changing password after login with SDK.
+// Then do special handling such as authenticationInfo
+func (s *Service) ChangePassword(input *ChangePasswordInput) (*ChangePasswordOutput, error) {
+	userID := input.Session.GetAuthenticationInfo().UserID
+
+	ais, err := s.Authenticators.List(
+		userID,
+		authenticator.KeepType(model.AuthenticatorTypePassword),
+		authenticator.KeepKind(authenticator.KindPrimary),
+	)
+	if err != nil {
+		return &ChangePasswordOutput{}, err
+	}
+
+	if len(ais) == 0 {
+		return &ChangePasswordOutput{}, api.ErrNoPassword
+	}
+
+	oldInfo := ais[0]
+
+	_, err = s.Authenticators.VerifyWithSpec(oldInfo, &authenticator.Spec{
+		Password: &authenticator.PasswordSpec{
+			PlainPassword: input.OldPassword,
+		},
+	}, nil)
+	if err != nil {
+		err = api.ErrInvalidCredentials
+		return &ChangePasswordOutput{}, err
+	}
+
+	changed, newInfo, err := s.Authenticators.UpdatePassword(oldInfo, &service.UpdatePasswordOptions{
+		SetPassword:    true,
+		PlainPassword:  input.NewPassword,
+		SetExpireAfter: true,
+	})
+	if err != nil {
+		return &ChangePasswordOutput{}, err
+	}
+
+	if changed {
+		err = s.Database.WithTx(func() error {
+			err = s.Authenticators.Update(newInfo)
+			if err != nil {
+				return err
+			}
+			return nil
+		})
+		if err != nil {
+			return &ChangePasswordOutput{}, err
+		}
+	}
+
+	redirectURI := input.RedirectURI
+
+	// If is changing password with SDK.
+	if input.OAuthSessionID != "" {
+		authInfo := input.Session.GetAuthenticationInfo()
+		authenticationInfoEntry := authenticationinfo.NewEntry(authInfo, input.OAuthSessionID, "")
+
+		err = s.Database.WithTx(func() error {
+			err = s.AuthenticationInfoService.Save(authenticationInfoEntry)
+
+			if err != nil {
+				return err
+			}
+			return nil
+		})
+		if err != nil {
+			return &ChangePasswordOutput{}, err
+		}
+
+		redirectURI = s.UIInfoResolver.SetAuthenticationInfoInQuery(input.RedirectURI, authenticationInfoEntry)
+	}
+
+	return &ChangePasswordOutput{RedirectURI: redirectURI}, nil
+
 }

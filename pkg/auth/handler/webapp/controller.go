@@ -146,7 +146,7 @@ func (c *Controller) DeleteSession(id string) error {
 	return c.Page.DeleteSession(id)
 }
 
-func (c *Controller) Serve() {
+func (c *Controller) ServeWithDBTx() {
 	var err error
 	switch c.request.Method {
 	case http.MethodGet:

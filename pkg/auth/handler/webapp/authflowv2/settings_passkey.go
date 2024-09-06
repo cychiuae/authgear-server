@@ -36,7 +36,7 @@ type AuthflowV2SettingsChangePasskeyHandler struct {
 	BaseViewModel            *viewmodels.BaseViewModeler
 	Renderer                 handlerwebapp.Renderer
 	Identities               handlerwebapp.SettingsIdentityService
-	AccountmanagementService *accountmanagement.Service
+	AccountManagementService *accountmanagement.Service
 	Passkey                  PasskeyCreationOptionsService
 }
 
@@ -114,7 +114,7 @@ func (h *AuthflowV2SettingsChangePasskeyHandler) ServeHTTP(w http.ResponseWriter
 			CreationResponse: &creationResponse,
 		}
 
-		_, err = h.AccountmanagementService.AddPasskey(input)
+		_, err = h.AccountManagementService.AddPasskey(input)
 		if err != nil {
 			return err
 		}
@@ -137,7 +137,7 @@ func (h *AuthflowV2SettingsChangePasskeyHandler) ServeHTTP(w http.ResponseWriter
 			IdentityID: identityID,
 		}
 
-		_, err = h.AccountmanagementService.RemovePasskey(input)
+		_, err = h.AccountManagementService.RemovePasskey(input)
 		if err != nil {
 			return err
 		}

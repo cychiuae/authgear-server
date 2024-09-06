@@ -7,8 +7,11 @@ import (
 	"github.com/authgear/authgear-server/pkg/api/model"
 	handlerwebapp "github.com/authgear/authgear-server/pkg/auth/handler/webapp"
 	"github.com/authgear/authgear-server/pkg/auth/handler/webapp/viewmodels"
+	"github.com/authgear/authgear-server/pkg/auth/webapp"
+	"github.com/authgear/authgear-server/pkg/lib/accountmanagement"
 	"github.com/authgear/authgear-server/pkg/lib/authn/identity"
 	"github.com/authgear/authgear-server/pkg/lib/session"
+	"github.com/authgear/authgear-server/pkg/util/httputil"
 	"github.com/authgear/authgear-server/pkg/util/template"
 )
 
@@ -28,10 +31,11 @@ type SettingsBiometricViewModel struct {
 }
 
 type AuthflowV2SettingsBiometricHandler struct {
-	ControllerFactory handlerwebapp.ControllerFactory
-	BaseViewModel     *viewmodels.BaseViewModeler
-	Renderer          handlerwebapp.Renderer
-	Identities        handlerwebapp.SettingsIdentityService
+	ControllerFactory        handlerwebapp.ControllerFactory
+	BaseViewModel            *viewmodels.BaseViewModeler
+	Renderer                 handlerwebapp.Renderer
+	Identities               handlerwebapp.SettingsIdentityService
+	AccountManagementService *accountmanagement.Service
 }
 
 func (h *AuthflowV2SettingsBiometricHandler) GetData(r *http.Request, rw http.ResponseWriter) (map[string]interface{}, error) {
@@ -84,6 +88,27 @@ func (h *AuthflowV2SettingsBiometricHandler) ServeHTTP(w http.ResponseWriter, r 
 		}
 
 		h.Renderer.RenderHTML(w, r, TemplateWebSettingsV2BiometricHTML, data)
+
+		return nil
+	})
+
+	ctrl.PostAction("remove", func() error {
+		identityID := r.Form.Get("q_identity_id")
+
+		s := session.GetSession(r.Context())
+
+		input := &accountmanagement.RemoveBiometricInput{
+			Session:    s,
+			IdentityID: identityID,
+		}
+		_, err = h.AccountManagementService.RemoveBiometric(input)
+		if err != nil {
+			return err
+		}
+
+		redirectURI := httputil.HostRelative(r.URL).String()
+		result := webapp.Result{RedirectURI: redirectURI}
+		result.WriteResponse(w, r)
 
 		return nil
 	})

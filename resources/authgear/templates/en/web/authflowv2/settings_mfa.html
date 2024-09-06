@@ -1,0 +1,54 @@
+{{ template "authflowv2/__settings_page_frame.html" . }}
+
+{{ define "page-navbar" }}
+  {{ template "authflowv2/__navbar.html"
+     (dict
+        "BackTitle" (translate "v2.component.navbar.default.item-back-button-label" nil)
+        "BackHref" (call $.MakeURL "/settings")
+        "Title" (translate "v2.page.settings-mfa.default.navbar-title" nil)
+     )
+  }}
+{{ end }}
+
+{{ define "page-content" }}
+
+{{ if $.ShowSecondaryPassword }}
+  {{ $href := (call $.MakeURL "/settings/mfa/create_password") }}
+  {{ if $.SecondaryPassword }}
+    {{ $href = (call $.MakeURL "/settings/mfa/password") }}
+  {{ end }}
+  {{ template "__settings_mfa_item"
+      (dict
+        "MaterialIconName" "lock"
+        "Label" (translate "v2.page.settings-mfa.default.additional-password-label" nil)
+        "IsActive" $.SecondaryPassword
+        "Href" $href
+      )
+  }}
+
+{{ end }}
+
+{{ end }}
+
+{{ define "__settings_mfa_item" }}
+  {{ template "authflowv2/__settings_item.html"
+      (dict
+        "MaterialIconName" $.MaterialIconName
+        "Label" $.Label
+        "Href" $.Href
+        "SupplementaryNote" (include "__settings_mfa_item_status"
+          (dict
+            "IsActive" $.IsActive
+          )
+        )
+      )
+  }}
+{{ end }}
+
+{{ define "__settings_mfa_item_status" }}
+  {{ if $.IsActive }}
+    <span class="text-[color:var(--color-success)]">{{ translate "v2.page.settings-mfa.default.activated-label" nil}}</span>
+  {{ else }}
+    <span class="text-[color:var(--color-warning)]">{{ translate "v2.page.settings-mfa.default.inactive-label" nil}}</span>
+  {{ end }}
+{{ end }}

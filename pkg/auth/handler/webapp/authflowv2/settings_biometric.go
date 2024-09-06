@@ -10,6 +10,7 @@ import (
 	"github.com/authgear/authgear-server/pkg/auth/webapp"
 	"github.com/authgear/authgear-server/pkg/lib/accountmanagement"
 	"github.com/authgear/authgear-server/pkg/lib/authn/identity"
+	"github.com/authgear/authgear-server/pkg/lib/infra/db/appdb"
 	"github.com/authgear/authgear-server/pkg/lib/session"
 	"github.com/authgear/authgear-server/pkg/util/httputil"
 	"github.com/authgear/authgear-server/pkg/util/template"
@@ -31,6 +32,7 @@ type SettingsBiometricViewModel struct {
 }
 
 type AuthflowV2SettingsBiometricHandler struct {
+	Database                 *appdb.Handle
 	ControllerFactory        handlerwebapp.ControllerFactory
 	BaseViewModel            *viewmodels.BaseViewModeler
 	Renderer                 handlerwebapp.Renderer
@@ -47,7 +49,14 @@ func (h *AuthflowV2SettingsBiometricHandler) GetData(r *http.Request, rw http.Re
 	viewmodels.Embed(data, baseViewModel)
 
 	// BioMetricViewModel
-	identityInfos, err := h.Identities.ListByUser(*userID)
+	var identityInfos []*identity.Info
+	err := h.Database.WithTx(func() (err error) {
+		identityInfos, err = h.Identities.ListByUser(*userID)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}

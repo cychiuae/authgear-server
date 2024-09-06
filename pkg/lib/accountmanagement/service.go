@@ -313,21 +313,22 @@ func (s *Service) ChangePassword(input *ChangePasswordInput) (*ChangePasswordOut
 func (s *Service) RemoveBiometric(input *RemoveBiometricInput) (*RemoveBiometricOutput, error) {
 	identityID := input.IdentityID
 
-	identityInfo, err := s.Identities.Get(identityID)
-	if err != nil {
-		return nil, err
-	}
+	var identityInfo *identity.Info
+	err := s.Database.WithTx(func() (err error) {
+		identityInfo, err = s.Identities.Get(identityID)
+		if err != nil {
+			return err
+		}
 
-	if identityInfo.UserID != input.Session.GetAuthenticationInfo().UserID {
-		return nil, api.NewInvariantViolated(
-			"IdentityNotBelongToUser",
-			"identity does not belong to the user",
-			nil,
-		)
-	}
+		if identityInfo.UserID != input.Session.GetAuthenticationInfo().UserID {
+			return api.NewInvariantViolated(
+				"IdentityNotBelongToUser",
+				"identity does not belong to the user",
+				nil,
+			)
+		}
 
-	err = s.Database.WithTx(func() error {
-		err := s.Identities.Delete(identityInfo)
+		err = s.Identities.Delete(identityInfo)
 		if err != nil {
 			return err
 		}
@@ -356,5 +357,4 @@ func (s *Service) RemoveBiometric(input *RemoveBiometricInput) (*RemoveBiometric
 	}
 
 	return &RemoveBiometricOutput{}, nil
-
 }

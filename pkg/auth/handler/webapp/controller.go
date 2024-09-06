@@ -146,11 +146,31 @@ func (c *Controller) DeleteSession(id string) error {
 	return c.Page.DeleteSession(id)
 }
 
+func (c *Controller) Serve() {
+	c.serve(serveOption{
+		withDBTx: false,
+	})
+}
+
 func (c *Controller) ServeWithDBTx() {
+	c.serve(serveOption{
+		withDBTx: true,
+	})
+}
+
+type serveOption struct {
+	withDBTx bool
+}
+
+func (c *Controller) serve(option serveOption) {
 	var err error
 	switch c.request.Method {
 	case http.MethodGet:
-		err = c.Database.WithTx(c.getHandler)
+		if option.withDBTx {
+			err = c.Database.WithTx(c.getHandler)
+		} else {
+			err = c.getHandler()
+		}
 	case http.MethodPost:
 		handler, ok := c.postHandlers[c.request.Form.Get("x_action")]
 		if !ok {
@@ -158,7 +178,11 @@ func (c *Controller) ServeWithDBTx() {
 			break
 		}
 
-		err = c.Database.WithTx(handler)
+		if option.withDBTx {
+			err = c.Database.WithTx(handler)
+		} else {
+			err = handler()
+		}
 	default:
 		http.Error(c.response, "Invalid request method", http.StatusMethodNotAllowed)
 	}

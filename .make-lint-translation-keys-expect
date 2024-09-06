@@ -25,6 +25,9 @@ resources/authgear/templates/en/web/authflowv2/login.html:252:25: invalid transl
 resources/authgear/templates/en/web/authflowv2/login.html:274:25: invalid translation key: "printf "v2.component.ldap-branding.default.label-%s" .server_name"
 resources/authgear/templates/en/web/authflowv2/select_account.html:13:24: invalid translation key: "app.name"
 resources/authgear/templates/en/web/authflowv2/settings_layout.html:3:14: translation key not defined: "widget"
+resources/authgear/templates/en/web/authflowv2/settings_mfa.html:20:14: translation key not defined: "__settings_mfa_item"
+resources/authgear/templates/en/web/authflowv2/settings_mfa.html:39:29: translation key not defined: "__settings_mfa_item_status"
+resources/authgear/templates/en/web/authflowv2/settings_mfa_password.html:25:31: translation key not defined: "__settings_mfa_password_description"
 resources/authgear/templates/en/web/authflowv2/settings_profile.html:29:18: translation key not defined: "__settings_profile_item"
 resources/authgear/templates/en/web/authflowv2/settings_profile.html:51:18: translation key not defined: "__settings_profile_item"
 resources/authgear/templates/en/web/authflowv2/settings_profile.html:68:22: translation key not defined: "__settings_profile_date_item"
@@ -41,5 +44,5 @@ resources/authgear/templates/en/web/authflowv2/signup.html:40:18: invalid transl
 resources/authgear/templates/en/web/authflowv2/signup.html:237:23: invalid translation key: "printf "v2.component.oauth-branding.%s.label" .provider_type"
 resources/authgear/templates/en/web/authflowv2/signup.html:259:23: invalid translation key: "printf "v2.component.ldap-branding.default.label-%s" .server_name"
 resources/authgear/templates/en/web/authflowv2/verify_login_link.html:4:18: invalid translation key: "app.name"
-43 errors found
+46 errors found
 exit status 1

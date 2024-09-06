@@ -1,8 +1,54 @@
 {{ template "authflowv2/__settings_page_frame.html" . }}
 
+{{ define "page-navbar" }}
+  {{ template "authflowv2/__navbar.html"
+    (dict
+        "BackTitle" (translate "v2.component.navbar.default.item-back-button-label" nil)
+        "BackHref" (call $.MakeURL "/settings")
+        "Title" (translate "v2.page.settings-biometric.default.navbar-title" nil)
+    )
+  }}
+{{ end }}
+
 {{ define "page-content" }}
-<div>
-  test
+<div class="flex flex-col">
+
+  {{ if not $.BiometricIdentities }}
+    <p class="settings-description text-center">
+      {{ template "v2.page.settings-biometric.default.description-no-biometric" . }}
+    </p>
+  {{ end }}
+
+  {{ range $.BiometricIdentities }}
+    <div class="settings-item--with-remove-btn">
+      <i class="settings-item_icon material-icons">
+        phone_iphone
+      </i>
+      <p class="settings-item__label">
+        {{ if .DisplayName }}
+          {{ .DisplayName }}
+        {{ else }}
+          {{ template "v2.page.settings-biometric.default.item-label-unknown-name" . }}
+        {{ end }}
+      </p>
+      <p class="settings-item__description settings-description">
+        {{ template "v2.page.settings-biometric.default.item-description" (dict "time" .CreatedAt "rfc3339" (rfc3339 .CreatedAt)) }}
+      </p>
+      <form class="settings-item__remove-btn" method="post" novalidate>
+        {{ $.CSRFField }}
+        <input type="hidden" name="q_identity_id" value="{{ .ID }}">
+        <button
+          type="submit"
+          name="x_action"
+          value="remove"
+          data-authgear-event="authgear.button.remove_biometric"
+        >
+        {{ template "v2.page.settings-biometric.default.button-label-disconnect" . }}
+        </button>
+      </form>
+    </div>
+  {{ end }}
+
 </div>
 {{end}}
 

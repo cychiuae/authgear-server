@@ -2,9 +2,13 @@ package authflowv2
 
 import (
 	"net/http"
+	"time"
 
+	"github.com/authgear/authgear-server/pkg/api/model"
 	handlerwebapp "github.com/authgear/authgear-server/pkg/auth/handler/webapp"
 	"github.com/authgear/authgear-server/pkg/auth/handler/webapp/viewmodels"
+	"github.com/authgear/authgear-server/pkg/lib/authn/identity"
+	"github.com/authgear/authgear-server/pkg/lib/session"
 	"github.com/authgear/authgear-server/pkg/util/template"
 )
 
@@ -13,18 +17,54 @@ var TemplateWebSettingsV2BiometricHTML = template.RegisterHTML(
 	handlerwebapp.SettingsComponents...,
 )
 
+type BiometricIdentity struct {
+	ID          string
+	DisplayName string
+	CreatedAt   time.Time
+}
+
+type SettingsBiometricViewModel struct {
+	BiometricIdentities []*BiometricIdentity
+}
+
 type AuthflowV2SettingsBiometricHandler struct {
 	ControllerFactory handlerwebapp.ControllerFactory
 	BaseViewModel     *viewmodels.BaseViewModeler
 	Renderer          handlerwebapp.Renderer
+	Identities        handlerwebapp.SettingsIdentityService
 }
 
 func (h *AuthflowV2SettingsBiometricHandler) GetData(r *http.Request, rw http.ResponseWriter) (map[string]interface{}, error) {
 	data := map[string]interface{}{}
+	userID := session.GetUserID(r.Context())
 
 	// BaseViewModel
 	baseViewModel := h.BaseViewModel.ViewModel(r, rw)
 	viewmodels.Embed(data, baseViewModel)
+
+	// BioMetricViewModel
+	identityInfos, err := h.Identities.ListByUser(*userID)
+	if err != nil {
+		return nil, err
+	}
+
+	biometricIdentityInfos := identity.ApplyFilters(
+		identityInfos,
+		identity.KeepType(model.IdentityTypeBiometric),
+	)
+
+	biometricViewModel := SettingsBiometricViewModel{}
+
+	for _, info := range biometricIdentityInfos {
+		displayName := info.Biometric.FormattedDeviceInfo()
+		biometricViewModel.BiometricIdentities = append(biometricViewModel.BiometricIdentities, &BiometricIdentity{
+			ID:          info.ID,
+			DisplayName: displayName,
+			CreatedAt:   info.CreatedAt,
+		})
+	}
+
+	viewmodels.Embed(data, biometricViewModel)
 
 	return data, nil
 }

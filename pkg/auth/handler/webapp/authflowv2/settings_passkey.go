@@ -12,6 +12,7 @@ import (
 	"github.com/authgear/authgear-server/pkg/auth/webapp"
 	"github.com/authgear/authgear-server/pkg/lib/accountmanagement"
 	"github.com/authgear/authgear-server/pkg/lib/authn/identity"
+	"github.com/authgear/authgear-server/pkg/lib/infra/db/appdb"
 	"github.com/authgear/authgear-server/pkg/lib/session"
 	"github.com/authgear/authgear-server/pkg/util/httputil"
 	"github.com/authgear/authgear-server/pkg/util/template"
@@ -32,6 +33,7 @@ type PasskeyCreationOptionsService interface {
 }
 
 type AuthflowV2SettingsChangePasskeyHandler struct {
+	Database                 *appdb.Handle
 	ControllerFactory        handlerwebapp.ControllerFactory
 	BaseViewModel            *viewmodels.BaseViewModeler
 	Renderer                 handlerwebapp.Renderer
@@ -48,32 +50,39 @@ func (h *AuthflowV2SettingsChangePasskeyHandler) GetData(r *http.Request, rw htt
 	baseViewModel := h.BaseViewModel.ViewModel(r, rw)
 	viewmodels.Embed(data, baseViewModel)
 
-	// PasskeyViewModel
-	identities, err := h.Identities.ListByUser(*userID)
-	if err != nil {
-		return nil, err
-	}
-	var passkeyIdentities []*identity.Info
-	for _, i := range identities {
-		if i.Type == model.IdentityTypePasskey {
-			ii := i
-			passkeyIdentities = append(passkeyIdentities, ii)
-		}
-	}
-	var creationOptionsJSON string
-	creationOptions, err := h.Passkey.MakeCreationOptions(*userID)
-	if err != nil {
-		return nil, err
-	}
-	creationOptionsJSONBytes, err := json.Marshal(creationOptions)
-	if err != nil {
-		return nil, err
-	}
-	creationOptionsJSON = string(creationOptionsJSONBytes)
+	passkeyViewModel := AuthflowV2SettingsPasskeyViewModel{}
 
-	passkeyViewModel := AuthflowV2SettingsPasskeyViewModel{
-		PasskeyIdentities:   passkeyIdentities,
-		CreationOptionsJSON: creationOptionsJSON,
+	// PasskeyViewModel
+	var identities []*identity.Info
+	err := h.Database.WithTx(func() (err error) {
+		identities, err = h.Identities.ListByUser(*userID)
+		if err != nil {
+			return err
+		}
+		var passkeyIdentities []*identity.Info
+		for _, i := range identities {
+			if i.Type == model.IdentityTypePasskey {
+				ii := i
+				passkeyIdentities = append(passkeyIdentities, ii)
+			}
+		}
+		creationOptions, err := h.Passkey.MakeCreationOptions(*userID)
+		if err != nil {
+			return err
+		}
+		creationOptionsJSONBytes, err := json.Marshal(creationOptions)
+		if err != nil {
+			return err
+		}
+		creationOptionsJSON := string(creationOptionsJSONBytes)
+		passkeyViewModel = AuthflowV2SettingsPasskeyViewModel{
+			PasskeyIdentities:   passkeyIdentities,
+			CreationOptionsJSON: creationOptionsJSON,
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	viewmodels.Embed(data, passkeyViewModel)
 

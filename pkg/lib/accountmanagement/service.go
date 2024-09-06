@@ -378,23 +378,25 @@ func (s *Service) AddPasskey(input *AddPasskeyInput) (*AddPasskeyOutput, error) 
 
 func (s *Service) RemovePasskey(input *RemovePasskeyInput) (*RemovePasskeyOutput, error) {
 	identityID := input.IdentityID
-	identityInfo, err := s.Identities.Get(identityID)
-	if err != nil {
-		return nil, err
-	}
+	var identityInfo *identity.Info
 
-	if identityInfo.UserID != input.Session.GetAuthenticationInfo().UserID {
-		return nil, api.NewInvariantViolated(
-			"IdentityNotBelongToUser",
-			"identity does not belong to the user",
-			nil,
-		)
-	}
-
-	err = s.Database.WithTx(func() error {
-		err := s.Identities.Delete(identityInfo)
+	err := s.Database.WithTx(func() (err error) {
+		identityInfo, err = s.Identities.Get(identityID)
 		if err != nil {
-			return err
+			return
+		}
+
+		if identityInfo.UserID != input.Session.GetAuthenticationInfo().UserID {
+			return api.NewInvariantViolated(
+				"IdentityNotBelongToUser",
+				"identity does not belong to the user",
+				nil,
+			)
+		}
+
+		err = s.Identities.Delete(identityInfo)
+		if err != nil {
+			return
 		}
 
 		return nil

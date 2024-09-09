@@ -1,6 +1,7 @@
 package accountmanagement
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/authgear/oauthrelyingparty/pkg/api/oauthrelyingparty"
@@ -13,6 +14,7 @@ import (
 	"github.com/authgear/authgear-server/pkg/lib/authn/authenticator"
 	"github.com/authgear/authgear-server/pkg/lib/authn/authenticator/service"
 	"github.com/authgear/authgear-server/pkg/lib/authn/identity"
+	"github.com/authgear/authgear-server/pkg/lib/config"
 	"github.com/authgear/authgear-server/pkg/lib/facade"
 	"github.com/authgear/authgear-server/pkg/lib/infra/db/appdb"
 	"github.com/authgear/authgear-server/pkg/lib/session"
@@ -84,6 +86,13 @@ type CreateAdditionalPasswordInput struct {
 	Password           string
 }
 
+type RemoveAuthenticatorByIDInput struct {
+	UserID          string
+	AuthenticatorID string
+	Type            model.AuthenticatorType
+	Kind            model.AuthenticatorKind
+}
+
 func NewCreateAdditionalPasswordInput(userID string, password string) CreateAdditionalPasswordInput {
 	return CreateAdditionalPasswordInput{
 		NewAuthenticatorID: uuid.New(),
@@ -107,6 +116,7 @@ type IdentityService interface {
 	New(userID string, spec *identity.Spec, options identity.NewIdentityOptions) (*identity.Info, error)
 	CheckDuplicated(info *identity.Info) (dupe *identity.Info, err error)
 	Create(info *identity.Info) error
+	ListByUser(userID string) ([]*identity.Info, error)
 }
 
 type EventService interface {
@@ -114,11 +124,13 @@ type EventService interface {
 }
 
 type AuthenticatorService interface {
+	Get(id string) (*authenticator.Info, error)
 	NewWithAuthenticatorID(authenticatorID string, spec *authenticator.Spec) (*authenticator.Info, error)
 	List(userID string, filters ...authenticator.Filter) ([]*authenticator.Info, error)
 	Create(authenticatorInfo *authenticator.Info, markVerified bool) error
 	Update(authenticatorInfo *authenticator.Info) error
 	UpdatePassword(authenticatorInfo *authenticator.Info, options *service.UpdatePasswordOptions) (changed bool, info *authenticator.Info, err error)
+	Delete(authenticatorInfo *authenticator.Info) error
 	VerifyWithSpec(info *authenticator.Info, spec *authenticator.Spec, options *facade.VerifyOptions) (verifyResult *service.VerifyResult, err error)
 }
 
@@ -144,6 +156,8 @@ type Service struct {
 	AuthenticationInfoService AuthenticationInfoService
 	UIInfoResolver            SettingsDeleteAccountSuccessUIInfoResolver
 	Users                     UserService
+
+	Config *config.AppConfig
 }
 
 func (s *Service) StartAdding(input *StartAddingInput) (*StartAddingOutput, error) {
@@ -409,5 +423,123 @@ func (s *Service) CreateAuthenticator(authenticatorInfo *authenticator.Info) err
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func (s *Service) RemoveSecondaryPassword(userID string, authenticatorID string) error {
+	return s.RemoveAuthenticatorByID(&RemoveAuthenticatorByIDInput{
+		UserID:          userID,
+		AuthenticatorID: authenticatorID,
+		Type:            model.AuthenticatorTypePassword,
+		Kind:            model.AuthenticatorKindSecondary,
+	})
+}
+
+func (s *Service) RemoveAuthenticatorByID(input *RemoveAuthenticatorByIDInput) error {
+	authenticatorInfo, err := s.Authenticators.Get(input.AuthenticatorID)
+	if err != nil {
+		return err
+	}
+
+	if input.Type != "" && authenticatorInfo.Type != input.Type {
+		return fmt.Errorf("authenticator with given ID does not have given Type")
+	}
+
+	if input.Kind != "" && authenticatorInfo.Kind != input.Kind {
+		return fmt.Errorf("authenticator with given ID does not have given Kind")
+	}
+
+	return s.RemoveAuthenticator(input.UserID, authenticatorInfo)
+}
+
+func (s *Service) RemoveAuthenticator(userID string, authenticatorInfo *authenticator.Info) error {
+	err := s.Database.WithTx(func() error {
+		/* RemoveAuthenticator: Instantiate */
+		bypassMFARequirement := false
+
+		if authenticatorInfo.UserID != userID {
+			return api.NewInvariantViolated(
+				"AuthenticatorNotBelongToUser",
+				"authenticator does not belong to the user",
+				nil,
+			)
+		}
+
+		/* RemoveAuthenticator: Prepare */
+		/* RemoveAuthenticator: GetEffects */
+
+		/* DoRemoveAuthenticator: Instantiate */
+		/* DoRemoveAuthenticator: Prepare */
+		/* DoRemoveAuthenticator: GetEffects */
+
+		// Effect 1: EffectRun
+		as, err := s.Authenticators.List(userID)
+		if err != nil {
+			return err
+		}
+
+		switch authenticatorInfo.Kind {
+		case authenticator.KindPrimary:
+			if authenticatorInfo.Type == model.AuthenticatorTypePasskey {
+				return api.NewInvariantViolated(
+					"RemovePasskeyAuthenticator",
+					"cannot delete passkey authenticator, should delete passkey identity instead",
+					nil,
+				)
+			}
+
+			// Ensure all identities have matching primary authenticator.
+			is, err := s.Identities.ListByUser(userID)
+			if err != nil {
+				return err
+			}
+
+			for _, i := range is {
+				primaryAuths := authenticator.ApplyFilters(as, authenticator.KeepPrimaryAuthenticatorOfIdentity(i))
+				if len(primaryAuths) == 1 && primaryAuths[0].ID == authenticatorInfo.ID {
+					return api.NewInvariantViolated(
+						"RemoveLastPrimaryAuthenticator",
+						"cannot remove last primary authenticator for identity",
+						map[string]interface{}{"identity_id": i.ID},
+					)
+				}
+			}
+
+		case authenticator.KindSecondary:
+			// Ensure authenticators conform to MFA requirement configuration
+			if bypassMFARequirement {
+				break
+			}
+			primaries := authenticator.ApplyFilters(as, authenticator.KeepPrimaryAuthenticatorCanHaveMFA)
+			secondaries := authenticator.ApplyFilters(as, authenticator.KeepKind(authenticator.KindSecondary))
+			var mode config.SecondaryAuthenticationMode = config.SecondaryAuthenticationModeDefault
+			if s.Config != nil && s.Config.Authentication != nil {
+				mode = s.Config.Authentication.SecondaryAuthenticationMode
+			}
+
+			cannotRemove := mode == config.SecondaryAuthenticationModeRequired &&
+				len(primaries) > 0 &&
+				len(secondaries) == 1 && secondaries[0].ID == authenticatorInfo.ID
+
+			if cannotRemove {
+				return api.NewInvariantViolated(
+					"RemoveLastSecondaryAuthenticator",
+					"cannot remove last secondary authenticator",
+					nil,
+				)
+			}
+		}
+
+		err = s.Authenticators.Delete(authenticatorInfo)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
 	return nil
 }

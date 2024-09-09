@@ -41,12 +41,25 @@ type FinishAddingOutput struct {
 	// It is intentionally empty.
 }
 
+type ChangePrimaryPasswordInput struct {
+	Session        session.ResolvedSession
+	OAuthSessionID string
+	RedirectURI    string
+	OldPassword    string
+	NewPassword    string
+}
+
+type ChangePrimaryPasswordOutput struct {
+	RedirectURI string
+}
+
 type ChangePasswordInput struct {
 	Session        session.ResolvedSession
 	OAuthSessionID string
 	RedirectURI    string
 	OldPassword    string
 	NewPassword    string
+	Kind           model.AuthenticatorKind
 }
 
 type ChangePasswordOutput struct {
@@ -245,6 +258,24 @@ func (s *Service) FinishAdding(input *FinishAddingInput) (*FinishAddingOutput, e
 	return &FinishAddingOutput{}, nil
 }
 
+func (s *Service) ChangePrimaryPassword(input *ChangePrimaryPasswordInput) (*ChangePrimaryPasswordOutput, error) {
+	output, err := s.ChangePassword(&ChangePasswordInput{
+		Session:        input.Session,
+		OAuthSessionID: input.OAuthSessionID,
+		RedirectURI:    input.RedirectURI,
+		OldPassword:    input.OldPassword,
+		NewPassword:    input.NewPassword,
+		Kind:           model.AuthenticatorKindPrimary,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &ChangePrimaryPasswordOutput{
+		RedirectURI: output.RedirectURI,
+	}, nil
+}
+
 // If have OAuthSessionID, it means the user is changing password after login with SDK.
 // Then do special handling such as authenticationInfo
 func (s *Service) ChangePassword(input *ChangePasswordInput) (*ChangePasswordOutput, error) {
@@ -255,7 +286,7 @@ func (s *Service) ChangePassword(input *ChangePasswordInput) (*ChangePasswordOut
 		ais, err := s.Authenticators.List(
 			userID,
 			authenticator.KeepType(model.AuthenticatorTypePassword),
-			authenticator.KeepKind(authenticator.KindPrimary),
+			authenticator.KeepKind(input.Kind),
 		)
 		if err != nil {
 			return err

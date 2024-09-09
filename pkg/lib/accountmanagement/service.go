@@ -53,6 +53,18 @@ type ChangePrimaryPasswordOutput struct {
 	RedirectURI string
 }
 
+type ChangeSecondaryPasswordInput struct {
+	Session        session.ResolvedSession
+	OAuthSessionID string
+	RedirectURI    string
+	OldPassword    string
+	NewPassword    string
+}
+
+type ChangeSecondaryPasswordOutput struct {
+	RedirectURI string
+}
+
 type ChangePasswordInput struct {
 	Session        session.ResolvedSession
 	OAuthSessionID string
@@ -272,6 +284,24 @@ func (s *Service) ChangePrimaryPassword(input *ChangePrimaryPasswordInput) (*Cha
 	}
 
 	return &ChangePrimaryPasswordOutput{
+		RedirectURI: output.RedirectURI,
+	}, nil
+}
+
+func (s *Service) ChangeSecondaryPassword(input *ChangeSecondaryPasswordInput) (*ChangeSecondaryPasswordOutput, error) {
+	output, err := s.ChangePassword(&ChangePasswordInput{
+		Session:        input.Session,
+		OAuthSessionID: input.OAuthSessionID,
+		RedirectURI:    input.RedirectURI,
+		OldPassword:    input.OldPassword,
+		NewPassword:    input.NewPassword,
+		Kind:           model.AuthenticatorKindSecondary,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &ChangeSecondaryPasswordOutput{
 		RedirectURI: output.RedirectURI,
 	}, nil
 }

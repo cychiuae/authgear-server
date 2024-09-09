@@ -86,11 +86,13 @@ type CreateAdditionalPasswordInput struct {
 	Password           string
 }
 
-type RemoveAuthenticatorByIDInput struct {
+type RemoveSecondaryPasswordInput struct {
 	UserID          string
 	AuthenticatorID string
-	Type            model.AuthenticatorType
-	Kind            model.AuthenticatorKind
+}
+
+type RemoveSecondaryPasswordOutput struct {
+	// It is intentionally empty.
 }
 
 func NewCreateAdditionalPasswordInput(userID string, password string) CreateAdditionalPasswordInput {
@@ -426,38 +428,23 @@ func (s *Service) CreateAuthenticator(authenticatorInfo *authenticator.Info) err
 	return nil
 }
 
-func (s *Service) RemoveSecondaryPassword(userID string, authenticatorID string) error {
-	return s.RemoveAuthenticatorByID(&RemoveAuthenticatorByIDInput{
-		UserID:          userID,
-		AuthenticatorID: authenticatorID,
-		Type:            model.AuthenticatorTypePassword,
-		Kind:            model.AuthenticatorKindSecondary,
-	})
-}
-
-func (s *Service) RemoveAuthenticatorByID(input *RemoveAuthenticatorByIDInput) error {
+func (s *Service) RemoveSecondaryPassword(input *RemoveSecondaryPasswordInput) (*RemoveSecondaryPasswordOutput, error) {
 	authenticatorInfo, err := s.Authenticators.Get(input.AuthenticatorID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	if input.Type != "" && authenticatorInfo.Type != input.Type {
-		return fmt.Errorf("authenticator with given ID does not have given Type")
+	if authenticatorInfo.Type != model.AuthenticatorTypePassword {
+		return nil, fmt.Errorf("authenticator with given ID does not have Type Password")
 	}
 
-	if input.Kind != "" && authenticatorInfo.Kind != input.Kind {
-		return fmt.Errorf("authenticator with given ID does not have given Kind")
+	if authenticatorInfo.Kind != model.AuthenticatorKindSecondary {
+		return nil, fmt.Errorf("authenticator with given ID does not have Kind Secondary")
 	}
 
-	return s.RemoveAuthenticator(input.UserID, authenticatorInfo)
-}
-
-func (s *Service) RemoveAuthenticator(userID string, authenticatorInfo *authenticator.Info) error {
-	err := s.Database.WithTx(func() error {
+	err = s.Database.WithTx(func() error {
 		/* RemoveAuthenticator: Instantiate */
-		bypassMFARequirement := false
-
-		if authenticatorInfo.UserID != userID {
+		if authenticatorInfo.UserID != input.UserID {
 			return api.NewInvariantViolated(
 				"AuthenticatorNotBelongToUser",
 				"authenticator does not belong to the user",
@@ -473,61 +460,29 @@ func (s *Service) RemoveAuthenticator(userID string, authenticatorInfo *authenti
 		/* DoRemoveAuthenticator: GetEffects */
 
 		// Effect 1: EffectRun
-		as, err := s.Authenticators.List(userID)
+		as, err := s.Authenticators.List(input.UserID)
 		if err != nil {
 			return err
 		}
 
-		switch authenticatorInfo.Kind {
-		case authenticator.KindPrimary:
-			if authenticatorInfo.Type == model.AuthenticatorTypePasskey {
-				return api.NewInvariantViolated(
-					"RemovePasskeyAuthenticator",
-					"cannot delete passkey authenticator, should delete passkey identity instead",
-					nil,
-				)
-			}
+		// Ensure authenticators conform to MFA requirement configuration
+		primaries := authenticator.ApplyFilters(as, authenticator.KeepPrimaryAuthenticatorCanHaveMFA)
+		secondaries := authenticator.ApplyFilters(as, authenticator.KeepKind(authenticator.KindSecondary))
+		var mode config.SecondaryAuthenticationMode = config.SecondaryAuthenticationModeDefault
+		if s.Config != nil && s.Config.Authentication != nil {
+			mode = s.Config.Authentication.SecondaryAuthenticationMode
+		}
 
-			// Ensure all identities have matching primary authenticator.
-			is, err := s.Identities.ListByUser(userID)
-			if err != nil {
-				return err
-			}
+		cannotRemove := mode == config.SecondaryAuthenticationModeRequired &&
+			len(primaries) > 0 &&
+			len(secondaries) == 1 && secondaries[0].ID == authenticatorInfo.ID
 
-			for _, i := range is {
-				primaryAuths := authenticator.ApplyFilters(as, authenticator.KeepPrimaryAuthenticatorOfIdentity(i))
-				if len(primaryAuths) == 1 && primaryAuths[0].ID == authenticatorInfo.ID {
-					return api.NewInvariantViolated(
-						"RemoveLastPrimaryAuthenticator",
-						"cannot remove last primary authenticator for identity",
-						map[string]interface{}{"identity_id": i.ID},
-					)
-				}
-			}
-
-		case authenticator.KindSecondary:
-			// Ensure authenticators conform to MFA requirement configuration
-			if bypassMFARequirement {
-				break
-			}
-			primaries := authenticator.ApplyFilters(as, authenticator.KeepPrimaryAuthenticatorCanHaveMFA)
-			secondaries := authenticator.ApplyFilters(as, authenticator.KeepKind(authenticator.KindSecondary))
-			var mode config.SecondaryAuthenticationMode = config.SecondaryAuthenticationModeDefault
-			if s.Config != nil && s.Config.Authentication != nil {
-				mode = s.Config.Authentication.SecondaryAuthenticationMode
-			}
-
-			cannotRemove := mode == config.SecondaryAuthenticationModeRequired &&
-				len(primaries) > 0 &&
-				len(secondaries) == 1 && secondaries[0].ID == authenticatorInfo.ID
-
-			if cannotRemove {
-				return api.NewInvariantViolated(
-					"RemoveLastSecondaryAuthenticator",
-					"cannot remove last secondary authenticator",
-					nil,
-				)
-			}
+		if cannotRemove {
+			return api.NewInvariantViolated(
+				"RemoveLastSecondaryAuthenticator",
+				"cannot remove last secondary authenticator",
+				nil,
+			)
 		}
 
 		err = s.Authenticators.Delete(authenticatorInfo)
@@ -538,8 +493,8 @@ func (s *Service) RemoveAuthenticator(userID string, authenticatorInfo *authenti
 		return nil
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return &RemoveSecondaryPasswordOutput{}, nil
 }

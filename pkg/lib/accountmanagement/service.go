@@ -103,6 +103,15 @@ type RemoveSecondaryPasswordOutput struct {
 	// It is intentionally empty.
 }
 
+type RemoveTOTPAuthenticatorInput struct {
+	UserID          string
+	AuthenticatorID string
+}
+
+type RemoveTOTPAuthenticatorOutput struct {
+	// It is intentionally empty.
+}
+
 func NewCreateAdditionalPasswordInput(userID string, password string) CreateAdditionalPasswordInput {
 	return CreateAdditionalPasswordInput{
 		NewAuthenticatorID: uuid.New(),
@@ -537,4 +546,75 @@ func (s *Service) RemoveSecondaryPassword(input *RemoveSecondaryPasswordInput) (
 	}
 
 	return &RemoveSecondaryPasswordOutput{}, nil
+}
+
+func (s *Service) RemoveTOTPAuthenticator(input *RemoveTOTPAuthenticatorInput) (*RemoveTOTPAuthenticatorOutput, error) {
+	authenticatorInfo, err := s.Authenticators.Get(input.AuthenticatorID)
+	if err != nil {
+		return nil, err
+	}
+
+	if authenticatorInfo.Type != model.AuthenticatorTypeTOTP {
+		return nil, fmt.Errorf("authenticator with given ID does not have Type Password")
+	}
+
+	if authenticatorInfo.Kind != model.AuthenticatorKindSecondary {
+		return nil, fmt.Errorf("authenticator with given ID does not have Kind Secondary")
+	}
+
+	err = s.Database.WithTx(func() error {
+		/* RemoveAuthenticator: Instantiate */
+		if authenticatorInfo.UserID != input.UserID {
+			return api.NewInvariantViolated(
+				"AuthenticatorNotBelongToUser",
+				"authenticator does not belong to the user",
+				nil,
+			)
+		}
+
+		/* RemoveAuthenticator: Prepare */
+		/* RemoveAuthenticator: GetEffects */
+
+		/* DoRemoveAuthenticator: Instantiate */
+		/* DoRemoveAuthenticator: Prepare */
+		/* DoRemoveAuthenticator: GetEffects */
+
+		// Effect 1: EffectRun
+		as, err := s.Authenticators.List(input.UserID)
+		if err != nil {
+			return err
+		}
+
+		// Ensure authenticators conform to MFA requirement configuration
+		primaries := authenticator.ApplyFilters(as, authenticator.KeepPrimaryAuthenticatorCanHaveMFA)
+		secondaries := authenticator.ApplyFilters(as, authenticator.KeepKind(authenticator.KindSecondary))
+		var mode config.SecondaryAuthenticationMode = config.SecondaryAuthenticationModeDefault
+		if s.Config != nil && s.Config.Authentication != nil {
+			mode = s.Config.Authentication.SecondaryAuthenticationMode
+		}
+
+		cannotRemove := mode == config.SecondaryAuthenticationModeRequired &&
+			len(primaries) > 0 &&
+			len(secondaries) == 1 && secondaries[0].ID == authenticatorInfo.ID
+
+		if cannotRemove {
+			return api.NewInvariantViolated(
+				"RemoveLastSecondaryAuthenticator",
+				"cannot remove last secondary authenticator",
+				nil,
+			)
+		}
+
+		err = s.Authenticators.Delete(authenticatorInfo)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &RemoveTOTPAuthenticatorOutput{}, nil
 }

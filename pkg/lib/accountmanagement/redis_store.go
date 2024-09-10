@@ -21,14 +21,20 @@ type RedisStore struct {
 	Clock   clock.Clock
 }
 
-type GenerateTokenOptions struct {
+type GenerateOAuthTokenOptions struct {
 	UserID      string
 	Alias       string
 	MaybeState  string
 	RedirectURI string
 }
 
-func (s *RedisStore) GenerateToken(options GenerateTokenOptions) (string, error) {
+type GenerateTOTPTokenOptions struct {
+	UserID     string
+	TOTPSecret string
+	OTPAuthURI string
+}
+
+func (s *RedisStore) GenerateOAuthToken(options GenerateOAuthTokenOptions) (string, error) {
 	tokenString := GenerateToken()
 	tokenHash := HashToken(tokenString)
 
@@ -70,6 +76,47 @@ func (s *RedisStore) GenerateToken(options GenerateTokenOptions) (string, error)
 	return tokenString, nil
 }
 
+func (s *RedisStore) GenerateTOTPToken(options GenerateTOTPTokenOptions) (string, error) {
+	tokenString := GenerateToken()
+	tokenHash := HashToken(tokenString)
+
+	now := s.Clock.NowUTC()
+	ttl := duration.UserInteraction
+	expireAt := now.Add(ttl)
+
+	token := &Token{
+		AppID:      string(s.AppID),
+		UserID:     options.UserID,
+		TOTPSecret: options.TOTPSecret,
+		OTPAuthURI: options.OTPAuthURI,
+		TokenHash:  tokenHash,
+		CreatedAt:  &now,
+		ExpireAt:   &expireAt,
+	}
+
+	tokenBytes, err := json.Marshal(token)
+	if err != nil {
+		return "", err
+	}
+
+	tokenKey := tokenKey(token.AppID, token.TokenHash)
+
+	err = s.Redis.WithConnContext(s.Context, func(conn *goredis.Conn) error {
+		_, err = conn.SetNX(s.Context, tokenKey, tokenBytes, ttl).Result()
+		if errors.Is(err, goredis.Nil) {
+			return errors.New("account management token collision")
+		} else if err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return tokenString, nil
+}
+
 func (s *RedisStore) ConsumeToken(tokenStr string) (*Token, error) {
 	tokenHash := HashToken(tokenStr)
 
@@ -79,6 +126,36 @@ func (s *RedisStore) ConsumeToken(tokenStr string) (*Token, error) {
 	err := s.Redis.WithConnContext(s.Context, func(conn *goredis.Conn) error {
 		var err error
 		tokenBytes, err = conn.GetDel(s.Context, tokenKey).Bytes()
+		if errors.Is(err, goredis.Nil) {
+			// Token Invalid
+			return ErrOAuthTokenInvalid
+		} else if err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var token Token
+	err = json.Unmarshal(tokenBytes, &token)
+	if err != nil {
+		return nil, err
+	}
+
+	return &token, nil
+}
+
+func (s *RedisStore) GetToken(tokenStr string) (*Token, error) {
+	tokenHash := HashToken(tokenStr)
+
+	tokenKey := tokenKey(string(s.AppID), tokenHash)
+
+	var tokenBytes []byte
+	err := s.Redis.WithConnContext(s.Context, func(conn *goredis.Conn) error {
+		var err error
+		tokenBytes, err = conn.Get(s.Context, tokenKey).Bytes()
 		if errors.Is(err, goredis.Nil) {
 			// Token Invalid
 			return ErrOAuthTokenInvalid

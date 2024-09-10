@@ -18,6 +18,7 @@ import (
 	"github.com/authgear/authgear-server/pkg/lib/facade"
 	"github.com/authgear/authgear-server/pkg/lib/infra/db/appdb"
 	"github.com/authgear/authgear-server/pkg/lib/session"
+	"github.com/authgear/authgear-server/pkg/util/secretcode"
 	"github.com/authgear/authgear-server/pkg/util/uuid"
 )
 
@@ -41,6 +42,32 @@ type FinishAddingInput struct {
 
 type FinishAddingOutput struct {
 	// It is intentionally empty.
+}
+
+type StartAddingTOTPInput struct {
+	UserID string
+}
+
+type StartAddingTOTPOutput struct {
+	Token string
+	// TOTPSecret string
+}
+
+type ResumeAddingTOTPInput struct {
+	UserID string
+	Token  string
+}
+
+type ResumeAddingTOTPOutput struct {
+	TOTPSecret string
+	OTPAuthURI string
+}
+
+type FinishAddingTOTPInput struct {
+	UserID      string
+	Token       string
+	DisplayName string
+	Code        string
 }
 
 type ChangePrimaryPasswordInput struct {
@@ -120,7 +147,9 @@ func NewCreateAdditionalPasswordInput(userID string, password string) CreateAddi
 }
 
 type Store interface {
-	GenerateToken(options GenerateTokenOptions) (string, error)
+	GenerateOAuthToken(options GenerateOAuthTokenOptions) (string, error)
+	GenerateTOTPToken(options GenerateTOTPTokenOptions) (string, error)
+	GetToken(tokenStr string) (*Token, error)
 	ConsumeToken(tokenStr string) (*Token, error)
 }
 
@@ -143,6 +172,7 @@ type EventService interface {
 
 type AuthenticatorService interface {
 	Get(id string) (*authenticator.Info, error)
+	New(spec *authenticator.Spec) (*authenticator.Info, error)
 	NewWithAuthenticatorID(authenticatorID string, spec *authenticator.Spec) (*authenticator.Info, error)
 	List(userID string, filters ...authenticator.Filter) ([]*authenticator.Info, error)
 	Create(authenticatorInfo *authenticator.Info, markVerified bool) error
@@ -194,7 +224,7 @@ func (s *Service) StartAdding(input *StartAddingInput) (*StartAddingOutput, erro
 		return nil, err
 	}
 
-	token, err := s.Store.GenerateToken(GenerateTokenOptions{
+	token, err := s.Store.GenerateOAuthToken(GenerateOAuthTokenOptions{
 		UserID:      input.UserID,
 		Alias:       input.Alias,
 		RedirectURI: input.RedirectURI,
@@ -216,7 +246,7 @@ func (s *Service) FinishAdding(input *FinishAddingInput) (*FinishAddingOutput, e
 		return nil, err
 	}
 
-	err = token.CheckUser(input.UserID)
+	err = token.CheckUserForOAuth(input.UserID)
 	if err != nil {
 		return nil, err
 	}
@@ -226,7 +256,7 @@ func (s *Service) FinishAdding(input *FinishAddingInput) (*FinishAddingOutput, e
 		return nil, err
 	}
 
-	err = token.CheckState(state)
+	err = token.CheckStateForOAuth(state)
 	if err != nil {
 		return nil, err
 	}
@@ -424,7 +454,66 @@ func (s *Service) CreateAdditionalPassword(input CreateAdditionalPasswordInput) 
 	return s.CreateAuthenticator(info)
 }
 
-func (s *Service) CreateTOTPAuthenticator(input *CreateTOTPAuthenticatorInput) error {
+func (s *Service) StartAddingTOTP(input *StartAddingTOTPInput) (*StartAddingTOTPOutput, error) {
+	totp, err := secretcode.NewTOTPFromRNG()
+	if err != nil {
+		return nil, err
+	}
+
+	otpauthURI := totp.GetURI(secretcode.URIOptions{
+		// Issuer:      opts.Issuer,
+		AccountName: input.UserID,
+	}).String()
+
+	token, err := s.Store.GenerateTOTPToken(GenerateTOTPTokenOptions{
+		UserID:     input.UserID,
+		TOTPSecret: totp.Secret,
+		OTPAuthURI: otpauthURI,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &StartAddingTOTPOutput{
+		Token: token,
+	}, nil
+}
+
+func (s *Service) ResumeAddingTOTP(input *ResumeAddingTOTPInput) (*ResumeAddingTOTPOutput, error) {
+	token, err := s.Store.GetToken(input.Token)
+	if err != nil {
+		return nil, err
+	}
+
+	err = token.CheckUser(input.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ResumeAddingTOTPOutput{
+		TOTPSecret: token.TOTPSecret,
+		OTPAuthURI: token.OTPAuthURI,
+	}, nil
+}
+
+func (s *Service) FinishAddingTOTP(input *FinishAddingTOTPInput) (err error) {
+	defer func() {
+		fmt.Println(err)
+		if err == nil {
+			_, err = s.Store.ConsumeToken(input.Token)
+		}
+	}()
+
+	token, err := s.Store.GetToken(input.Token)
+	if err != nil {
+		return err
+	}
+
+	err = token.CheckUser(input.UserID)
+	if err != nil {
+		return err
+	}
+
 	spec := &authenticator.Spec{
 		UserID:    input.UserID,
 		IsDefault: false,
@@ -432,18 +521,15 @@ func (s *Service) CreateTOTPAuthenticator(input *CreateTOTPAuthenticatorInput) e
 		Type:      model.AuthenticatorTypeTOTP,
 		TOTP: &authenticator.TOTPSpec{
 			DisplayName: input.DisplayName,
+			Secret:      token.TOTPSecret,
 		},
 	}
-	info, err := s.Authenticators.NewWithAuthenticatorID(input.NewAuthenticatorID, spec)
+
+	info, err := s.Authenticators.New(spec)
 	if err != nil {
 		return err
 	}
 
-	// 	// Generate and store a token
-	// 	return nil
-	// }
-
-	// func (s *Service) FinishCreateTOTPAuthenticator(input struct{  }) error {
 	_, err = s.Authenticators.VerifyWithSpec(info, &authenticator.Spec{
 		TOTP: &authenticator.TOTPSpec{
 			Code: input.Code,

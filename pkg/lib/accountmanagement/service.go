@@ -89,7 +89,6 @@ type CreateAdditionalPasswordInput struct {
 type CreateTOTPAuthenticatorInput struct {
 	NewAuthenticatorID string
 	UserID             string
-	Password           string
 	DisplayName        string
 	Code               string
 }
@@ -425,7 +424,7 @@ func (s *Service) CreateAdditionalPassword(input CreateAdditionalPasswordInput) 
 	return s.CreateAuthenticator(info)
 }
 
-func (s *Service) CreateTOTPAuthenticator(input CreateTOTPAuthenticatorInput) error {
+func (s *Service) CreateTOTPAuthenticator(input *CreateTOTPAuthenticatorInput) error {
 	spec := &authenticator.Spec{
 		UserID:    input.UserID,
 		IsDefault: false,
@@ -440,6 +439,11 @@ func (s *Service) CreateTOTPAuthenticator(input CreateTOTPAuthenticatorInput) er
 		return err
 	}
 
+	// 	// Generate and store a token
+	// 	return nil
+	// }
+
+	// func (s *Service) FinishCreateTOTPAuthenticator(input struct{  }) error {
 	_, err = s.Authenticators.VerifyWithSpec(info, &authenticator.Spec{
 		TOTP: &authenticator.TOTPSpec{
 			Code: input.Code,

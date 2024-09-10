@@ -6,6 +6,7 @@ import (
 	"github.com/authgear/authgear-server/pkg/api/model"
 	"github.com/authgear/authgear-server/pkg/auth/handler/webapp/viewmodels"
 	"github.com/authgear/authgear-server/pkg/auth/webapp"
+	"github.com/authgear/authgear-server/pkg/lib/accountmanagement"
 	"github.com/authgear/authgear-server/pkg/lib/authn"
 	"github.com/authgear/authgear-server/pkg/lib/authn/authenticator"
 	"github.com/authgear/authgear-server/pkg/lib/interaction/intents"
@@ -35,6 +36,7 @@ type SettingsTOTPHandler struct {
 	BaseViewModel     *viewmodels.BaseViewModeler
 	Renderer          Renderer
 	Authenticators    SettingsAuthenticatorService
+	AccountManagement accountmanagement.Service
 }
 
 func (h *SettingsTOTPHandler) GetData(r *http.Request, rw http.ResponseWriter) (map[string]interface{}, error) {
@@ -117,6 +119,13 @@ func (h *SettingsTOTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		if err != nil {
 			return err
 		}
+
+		// h.AccountManagement.CreateTOTPAuthenticator(&accountmanagement.CreateTOTPAuthenticatorInput{
+		// 	NewAuthenticatorID: uuid.New(),
+		// 	UserID:             userID,
+		// })
+
+		// result := webapp.Result{RedirectURI: "/flows/setup_totp"}
 
 		result.WriteResponse(w, r)
 		return nil

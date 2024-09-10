@@ -1,0 +1,70 @@
+{{ template "authflowv2/__page_frame.html" . }}
+{{ define "page-content" }}
+
+  {{ $display_otp_input_error := false }}
+  {{ if $.Error }}
+    {{ if eq $.Error.reason "InvalidCredentials" }}
+      {{ $display_otp_input_error = true }}
+    {{ end }}
+  {{ end }}
+
+  <div class="flex flex-col gap-y-8 flex-1-0-auto">
+    <div class="screen-title-description">
+      <h1 class="screen-title">
+        {{ template "v2.page.setup-totp-verify.default.title" }}
+      </h1>
+      <h2 class="screen-description">
+        {{ template "v2.page.setup-totp-verify.default.description" . }}
+      </h2>
+
+      {{ template "authflowv2/__alert_message.html"
+        (dict
+          "Type" "error"
+          "Classname" "mt-4"
+          "Message" (ternary (include "authflowv2/__error.html" .) nil (not $display_otp_input_error))
+        )
+      }}
+    </div>
+    <div>
+      {{ $otp_error_message := "" }}
+      {{ if $.Error  }}
+        {{ if $display_otp_input_error }}
+          {{ $otp_error_message = include "authflowv2/__error.html" .  }}
+        {{ end }}
+      {{ end }}
+
+      <form
+        id="main-form"
+        method="post"
+        novalidate
+        data-restore-form="false"
+        data-controller="turbo-form"
+        data-action="submit->turbo-form#submitForm" 
+      >
+        {{ $.CSRFField }}
+      </form>
+
+      {{ template "authflowv2/__otp_input.html"
+        (dict
+          "CSRFField" $.CSRFField
+          "FormName" "main-form"
+          "CodeLength" 6
+          "AutoFocus" $.ShouldFocusInput
+          "Disabled" $.FailedAttemptRateLimitExceeded
+          "SubmitEvent" "authgear.button.setup_totp"
+          "ErrorMessage" $otp_error_message
+          "ResendButtonHidden" true
+        )
+      }}
+
+      <a
+        class="mt-4 inline-block link-btn"
+        href="{{ call $.MakeURL "new" "q_setup_totp_step" "" "q_token" $.Token }}"
+      >
+        {{ template "v2.page.setup-totp-verify.default.rescan-button-label" }}
+      </a>
+    </div>
+
+    {{ template "authflowv2/__authflow_branch.html" $ }}
+  </div>
+{{ end }}

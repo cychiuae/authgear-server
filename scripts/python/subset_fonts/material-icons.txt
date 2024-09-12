@@ -70,6 +70,7 @@ merge
 message
 mode
 more
+note
 opacity
 outlet
 padding
@@ -92,6 +93,7 @@ public
 qr_code
 radio
 refresh
+remove
 repeat
 restore
 rule

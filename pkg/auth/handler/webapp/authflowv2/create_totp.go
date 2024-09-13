@@ -30,7 +30,7 @@ var TemplateWebAuthflowCreateTOTPVerifyHTML = template.RegisterHTML(
 func ConfigureAuthflowV2CreateTOTPRoute(route httproute.Route) httproute.Route {
 	return route.
 		WithMethods("OPTIONS", "POST", "GET").
-		WithPathPattern("/settings/mfa/totp/new")
+		WithPathPattern(AuthflowV2RouteCreateTOTP)
 }
 
 type AuthflowCreateTOTPViewModel struct {
@@ -95,7 +95,6 @@ func (h *AuthflowV2CreateTOTPHandler) GetData(w http.ResponseWriter, r *http.Req
 }
 
 func (h *AuthflowV2CreateTOTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// var handlers handlerwebapp.AuthflowControllerHandlers
 	ctrl, err := h.ControllerFactory.New(r, w)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -161,5 +160,4 @@ func (h *AuthflowV2CreateTOTPHandler) ServeHTTP(w http.ResponseWriter, r *http.R
 		result.WriteResponse(w, r)
 		return nil
 	})
-	// h.Controller.HandleStep(w, r, &handlers)
 }

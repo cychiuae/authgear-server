@@ -1,14 +1,17 @@
 package webapp
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/authgear/authgear-server/pkg/api/model"
 	"github.com/authgear/authgear-server/pkg/auth/handler/webapp/viewmodels"
 	"github.com/authgear/authgear-server/pkg/auth/webapp"
+	"github.com/authgear/authgear-server/pkg/lib/accountmanagement"
 	"github.com/authgear/authgear-server/pkg/lib/authn"
 	"github.com/authgear/authgear-server/pkg/lib/authn/mfa"
 	"github.com/authgear/authgear-server/pkg/lib/interaction/intents"
+	"github.com/authgear/authgear-server/pkg/lib/session"
 	"github.com/authgear/authgear-server/pkg/util/httproute"
 	"github.com/authgear/authgear-server/pkg/util/httputil"
 	"github.com/authgear/authgear-server/pkg/util/template"
@@ -36,6 +39,7 @@ type SettingsMFAHandler struct {
 	SettingsViewModel *viewmodels.SettingsViewModeler
 	Renderer          Renderer
 	MFA               SettingsMFAService
+	AccountManagement accountmanagement.Service
 }
 
 func (h *SettingsMFAHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -118,23 +122,17 @@ func (h *SettingsMFAHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	})
 
 	ctrl.PostAction("add_secondary_totp", func() error {
-		opts := webapp.SessionOptions{
-			RedirectURI: redirectURI,
-		}
-		intent := intents.NewIntentAddAuthenticator(
-			userID,
-			authn.AuthenticationStageSecondary,
-			model.AuthenticatorTypeTOTP,
-		)
+		userID := session.GetUserID(r.Context())
 
-		result, err := ctrl.EntryPointPost(opts, intent, func() (input interface{}, err error) {
-			input = &InputCreateAuthenticator{}
-			return
+		// It is possible to redirect straight to /new page since it have handler for if no q_token given, but better to gen ahead of time.
+		output, err := h.AccountManagement.StartAddingTOTP(&accountmanagement.StartAddingTOTPInput{
+			UserID: *userID,
 		})
 		if err != nil {
 			return err
 		}
 
+		result := webapp.Result{RedirectURI: fmt.Sprintf("/settings/mfa/totp/new?q_token=%s", output.Token)}
 		result.WriteResponse(w, r)
 		return nil
 	})

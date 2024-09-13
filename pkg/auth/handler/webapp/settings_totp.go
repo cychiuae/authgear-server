@@ -95,6 +95,7 @@ func (h *SettingsTOTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	ctrl.PostAction("add", func() error {
 		userID := session.GetUserID(r.Context())
 
+		// It is possible to redirect straight to /new page since it have handler for if no q_token given, but better to gen ahead of time.
 		output, err := h.AccountManagement.StartAddingTOTP(&accountmanagement.StartAddingTOTPInput{
 			UserID: *userID,
 		})

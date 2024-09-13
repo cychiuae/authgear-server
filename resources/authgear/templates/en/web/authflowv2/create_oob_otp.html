@@ -1,0 +1,99 @@
+{{ template "authflowv2/__page_frame.html" . }}
+{{ define "page-content" }}
+
+  {{ $display_otp_input_error := false }}
+  {{ if $.Error }}
+    {{ if eq $.Error.reason "ValidationFailed" }}
+      {{ $display_otp_input_error = true }}
+    {{ end }}
+  {{ end }}
+
+  {{ $show_captcha := false}}
+  {{ if $.IsBotProtectionRequired }}
+    {{ $show_captcha = true }}
+  {{ end }}
+
+  <div class="flex flex-col gap-y-8 flex-1-0-auto">
+    <div class="space-y-4">
+      <h1 class="screen-title">
+        {{ template "v2.page.setup-oob-otp.default.title" }}
+      </h1>
+      <h2 class="screen-description">
+        {{- if eq $.OOBAuthenticatorType "oob_otp_sms" }}
+          {{- if eq .Channel "whatsapp" }}
+            {{ template "v2.page.setup-oob-otp.whatsapp.subtitle" }}
+          {{ else }}
+            {{ template "v2.page.setup-oob-otp.sms.subtitle" }}
+          {{- end }}
+        {{- end }}
+        {{- if eq $.OOBAuthenticatorType "oob_otp_email" }}
+          {{ template "v2.page.setup-oob-otp.email.subtitle" }}
+        {{ end }}
+      </h2>
+
+      {{ template "authflowv2/__alert_message.html"
+        (dict
+          "Type" "error"
+          "Classname" "mt-4"
+          "Message" (ternary (include "authflowv2/__error.html" .) nil (not $display_otp_input_error))
+        )
+      }}
+    </div>
+
+    <form
+      method="post"
+      novalidate
+      data-controller="turbo-form"
+      data-action="{{ if $show_captcha }}submit->bot-protection#verifyFormSubmit {{end}}submit->turbo-form#submitForm"
+    >
+      {{ $.CSRFField }}
+      {{ if $show_captcha }}
+        {{ template "web/authflowv2/__bot_protection_form_input.html" . }}
+      {{ end }}
+      {{ $otp_error_message := "" }}
+      {{ if $.Error  }}
+        {{ if $display_otp_input_error }}
+          {{ $otp_error_message = include "authflowv2/__error.html" .  }}
+        {{ end }}
+      {{ end }}
+
+      {{- if eq $.OOBAuthenticatorType "oob_otp_sms" }}
+      {{ template "authflowv2/__phone_input.html"
+        (dict
+          "Placeholder" (include "v2.component.input.default.placeholder-phone" nil)
+          "PlaceholderWithExample" (include "v2.component.input.default.placeholder-phone-with-example" nil)
+          "IsError" $display_otp_input_error
+          "AutoFocus" $.ShouldFocusInput
+          "InputName" "x_target"
+        )
+      }}
+      {{- end }}
+
+      {{- if eq $.OOBAuthenticatorType "oob_otp_email" }}
+      <input
+        {{ if $.ShouldFocusInput }}autofocus{{ end }}
+        class="input w-full{{ if $display_otp_input_error }} input--error{{end}}"
+        type="email"
+        name="x_target"
+        autocomplete="email"
+        autocapitalize="none"
+        placeholder="{{ template "v2.component.input.default.placeholder-email" }}"
+      >
+      {{- end }}
+
+      {{ if $display_otp_input_error }}
+      <p class="input__error-message mt-2">
+        {{ $otp_error_message }}
+      </p>
+      {{ end }}
+
+      <button
+        class="primary-btn w-full mt-4"
+        type="submit"
+        name="x_action"
+        value=""
+        data-authgear-event="authgear.button.setup_oob_otp"
+      >{{ template "v2.component.button.default.label-continue" }}</button>
+    </form>
+  </div>
+{{ end }}

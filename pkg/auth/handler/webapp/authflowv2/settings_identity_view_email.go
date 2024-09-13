@@ -121,7 +121,6 @@ func (h *AuthflowV2SettingsIdentityViewEmailHandler) ServeHTTP(w http.ResponseWr
 	})
 
 	ctrl.PostAction("remove", func() error {
-		userID := session.GetUserID(r.Context())
 		requested := r.Form.Get("q_login_id")
 
 		// Page should be unable to display if q_login_id is not given. But just to be sure, we double check here.
@@ -131,7 +130,9 @@ func (h *AuthflowV2SettingsIdentityViewEmailHandler) ServeHTTP(w http.ResponseWr
 			return nil
 		}
 
-		err := h.AccountManagement.RemoveIdentityByID(*userID, requested)
+		_, err := h.AccountManagement.RemoveEmail(session.GetSession(r.Context()), &accountmanagement.RemoveEmailInput{
+			IdentityID: requested,
+		})
 		if err != nil {
 			return err
 		}

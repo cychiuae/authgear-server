@@ -7,6 +7,7 @@ import (
 	"github.com/authgear/oauthrelyingparty/pkg/api/oauthrelyingparty"
 
 	"github.com/authgear/authgear-server/pkg/api"
+	"github.com/authgear/authgear-server/pkg/api/apierrors"
 	"github.com/authgear/authgear-server/pkg/api/event"
 	"github.com/authgear/authgear-server/pkg/api/event/nonblocking"
 	"github.com/authgear/authgear-server/pkg/api/model"
@@ -14,9 +15,13 @@ import (
 	"github.com/authgear/authgear-server/pkg/lib/authn/authenticator"
 	"github.com/authgear/authgear-server/pkg/lib/authn/authenticator/service"
 	"github.com/authgear/authgear-server/pkg/lib/authn/identity"
+	"github.com/authgear/authgear-server/pkg/lib/authn/otp"
 	"github.com/authgear/authgear-server/pkg/lib/config"
 	"github.com/authgear/authgear-server/pkg/lib/facade"
+	"github.com/authgear/authgear-server/pkg/lib/feature"
+	"github.com/authgear/authgear-server/pkg/lib/feature/verification"
 	"github.com/authgear/authgear-server/pkg/lib/infra/db/appdb"
+	"github.com/authgear/authgear-server/pkg/lib/ratelimit"
 	"github.com/authgear/authgear-server/pkg/lib/session"
 	"github.com/authgear/authgear-server/pkg/util/secretcode"
 	"github.com/authgear/authgear-server/pkg/util/uuid"
@@ -149,6 +154,7 @@ func NewCreateAdditionalPasswordInput(userID string, password string) CreateAddi
 type Store interface {
 	GenerateOAuthToken(options GenerateOAuthTokenOptions) (string, error)
 	GenerateTOTPToken(options GenerateTOTPTokenOptions) (string, error)
+	GenerateOOBToken(options GenerateOOBTokenOptions) (string, error)
 	GetToken(tokenStr string) (*Token, error)
 	ConsumeToken(tokenStr string) (*Token, error)
 }
@@ -194,6 +200,20 @@ type UserService interface {
 	UpdateMFAEnrollment(userID string, t *time.Time) error
 }
 
+type OTPCodeService interface {
+	GenerateOTP(kind otp.Kind, target string, form otp.Form, opt *otp.GenerateOptions) (string, error)
+	VerifyOTP(kind otp.Kind, target string, otp string, opts *otp.VerifyOptions) error
+}
+
+type OTPSender interface {
+	Prepare(channel model.AuthenticatorOOBChannel, target string, form otp.Form, typ otp.MessageType) (*otp.PreparedMessage, error)
+	Send(msg *otp.PreparedMessage, opts otp.SendOptions) error
+}
+
+type VerificationService interface {
+	GetAuthenticatorVerificationStatus(a *authenticator.Info) (verification.AuthenticatorStatus, error)
+}
+
 type Service struct {
 	Database                  *appdb.Handle
 	Store                     Store
@@ -204,6 +224,11 @@ type Service struct {
 	AuthenticationInfoService AuthenticationInfoService
 	UIInfoResolver            SettingsDeleteAccountSuccessUIInfoResolver
 	Users                     UserService
+	Verification              VerificationService
+
+	FeatureConfig  *config.FeatureConfig
+	OTPCodeService OTPCodeService
+	OTPSender      OTPSender
 
 	Config *config.AppConfig
 }
@@ -454,6 +479,265 @@ func (s *Service) CreateAdditionalPassword(input CreateAdditionalPasswordInput) 
 	return s.CreateAuthenticator(info)
 }
 
+type CreateOOBStage string
+
+const (
+	CreateOOBStart    CreateOOBStage = "start"
+	CreateOOBSend     CreateOOBStage = "send"
+	CreateOOBVerify   CreateOOBStage = "verify"
+	CreateOOBRecovery CreateOOBStage = "recovery"
+	CreateOOBComplete CreateOOBStage = "complete"
+)
+
+func createOOBStage(s string) CreateOOBStage {
+	switch s {
+	case "start":
+		return CreateOOBStart
+	case "send":
+		return CreateOOBSend
+	case "verify":
+		return CreateOOBVerify
+	case "recovery":
+		return CreateOOBRecovery
+	case "complete":
+		return CreateOOBComplete
+	default:
+		return ""
+	}
+}
+
+type CreateOOBInput struct {
+	Token   string
+	Target  string
+	Channel model.AuthenticatorOOBChannel
+	Code    string
+}
+
+type CreateOOBStatusOutput struct {
+	UserID  string
+	Channel model.AuthenticatorOOBChannel
+	Target  string
+	State   CreateOOBStage
+}
+
+type CreateOOBOutput struct {
+	Token string
+	State CreateOOBStage
+}
+
+func (s *Service) CreateOOBStatus(ResolvedSession session.ResolvedSession, tokenID string) (output *CreateOOBStatusOutput, err error) {
+	authentication := ResolvedSession.GetAuthenticationInfo()
+
+	token, err := s.Store.GetToken(tokenID)
+	if err != nil {
+		return nil, err
+	}
+
+	err = token.CheckUser(authentication.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &CreateOOBStatusOutput{
+		UserID:  token.UserID,
+		Channel: model.AuthenticatorOOBChannel(token.OOBChannel),
+		Target:  token.OOBTarget,
+		State:   createOOBStage(token.State),
+	}, nil
+}
+
+func (s *Service) CreateOOBAdvance(ResolvedSession session.ResolvedSession, input *CreateOOBInput) (output *CreateOOBOutput, err error) {
+	shouldOverwrite := false
+	overwrite := GenerateOOBTokenOptions{}
+	defer func() {
+		fmt.Println(err)
+		if output != nil && output.State == CreateOOBComplete {
+			_, err = s.Store.ConsumeToken(input.Token)
+		}
+	}()
+
+	authentication := ResolvedSession.GetAuthenticationInfo()
+	tokenID := input.Token
+	if tokenID == "" {
+		if input.Target == "" {
+			return nil, fmt.Errorf("missing target")
+		}
+		if input.Channel == "" {
+			return nil, fmt.Errorf("missing target")
+		}
+		tokenID, err = s.Store.GenerateOOBToken(GenerateOOBTokenOptions{
+			UserID:     authentication.UserID,
+			OOBChannel: string(input.Channel),
+			OOBTarget:  input.Target,
+			State:      string(CreateOOBStart),
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	token, err := s.CreateOOBStatus(ResolvedSession, tokenID)
+	if err != nil {
+		return nil, err
+	}
+
+	/* CreateAuthenticatorOOBSetup: Instantiate */
+	spec := &authenticator.Spec{
+		UserID:    authentication.UserID,
+		Kind:      model.AuthenticatorKindSecondary,
+		IsDefault: false,
+		OOBOTP:    &authenticator.OOBOTPSpec{},
+	}
+
+	switch model.AuthenticatorOOBChannel(token.Channel) {
+	case model.AuthenticatorOOBChannelEmail:
+		spec.Type = model.AuthenticatorTypeOOBEmail
+		spec.OOBOTP.Email = token.Target
+	case model.AuthenticatorOOBChannelSMS:
+		spec.Type = model.AuthenticatorTypeOOBSMS
+		spec.OOBOTP.Phone = token.Target
+	default:
+		panic("interaction: creating OOB authenticator for invalid channel")
+	}
+
+	info, err := s.Authenticators.New(spec)
+	if err != nil {
+		return nil, err
+	}
+
+	// if token.State == CreateOOBStart {
+
+	// }
+	if token.State == CreateOOBSend {
+		var aStatus verification.AuthenticatorStatus
+		err = s.Database.WithTx(func() error {
+			aStatus, err = s.Verification.GetAuthenticatorVerificationStatus(info)
+			if err != nil {
+				return err
+			}
+
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		if aStatus == verification.AuthenticatorStatusVerified {
+			token.State = CreateOOBRecovery // Continue directly to recovery.
+		} else {
+			messageType := otp.MessageTypeSetupSecondaryOOB
+
+			var authenticatorType model.AuthenticatorType
+			switch input.Channel {
+			case model.AuthenticatorOOBChannelEmail:
+				authenticatorType = model.AuthenticatorTypeOOBEmail
+			case model.AuthenticatorOOBChannelSMS:
+				authenticatorType = model.AuthenticatorTypeOOBSMS
+			default:
+				panic("interaction: creating OOB authenticator for invalid channel")
+			}
+
+			if authenticatorType == model.AuthenticatorTypeOOBSMS && s.FeatureConfig.Authentication.SecondaryAuthenticators.OOBOTPSMS.Disabled {
+				return nil, feature.ErrFeatureDisabledSendingSMS
+			}
+
+			msg, err := s.OTPSender.Prepare(input.Channel, input.Target, otp.FormCode, messageType)
+			if apierrors.IsKind(err, ratelimit.RateLimited) {
+				// Ignore the rate limit error and do NOT send the code.  (return newOutput, nil)
+				token.State = CreateOOBVerify
+			} else if err != nil {
+				return nil, err
+			}
+			defer msg.Close()
+
+			code, err := s.OTPCodeService.GenerateOTP(
+				otp.KindOOBOTPWithForm(s.Config, input.Channel, otp.FormCode),
+				input.Target,
+				otp.FormCode,
+				&otp.GenerateOptions{WebSessionID: ResolvedSession.SessionID()},
+			)
+
+			if apierrors.IsKind(err, ratelimit.RateLimited) {
+				// Ignore the rate limit error and do NOT send the code.  (return newOutput, nil)
+				token.State = CreateOOBVerify
+			} else if err != nil {
+				return nil, err
+			}
+
+			err = s.Database.WithTx(func() error {
+				err = s.OTPSender.Send(msg, otp.SendOptions{OTP: code})
+				if err != nil {
+					return err
+				}
+
+				return nil
+			})
+			if err != nil {
+				return nil, err
+			}
+
+			// Needs output
+			return &CreateOOBOutput{}, nil
+		}
+	}
+	if token.State == CreateOOBVerify {
+		_, err = s.Authenticators.VerifyWithSpec(info, &authenticator.Spec{
+			OOBOTP: &authenticator.OOBOTPSpec{
+				Code: input.Code,
+			},
+		}, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		token.State = CreateOOBRecovery
+	}
+	if token.State == CreateOOBRecovery {
+
+	}
+	if token.State == CreateOOBComplete {
+		if info == nil {
+			spec := &authenticator.Spec{
+				UserID:    authentication.UserID,
+				IsDefault: false,
+				Kind:      model.AuthenticatorKindSecondary,
+				OOBOTP:    &authenticator.OOBOTPSpec{},
+			}
+
+			switch model.AuthenticatorOOBChannel(token.OOBChannel) {
+			case model.AuthenticatorOOBChannelEmail:
+				spec.Type = model.AuthenticatorTypeOOBEmail
+				spec.OOBOTP.Phone = token.OOBTarget
+			case model.AuthenticatorOOBChannelSMS:
+				spec.Type = model.AuthenticatorTypeOOBSMS
+				spec.OOBOTP.Email = token.OOBTarget
+			default:
+				panic("interaction: creating OOB authenticator for invalid channel")
+			}
+			info, err = s.Authenticators.NewWithAuthenticatorID(uuid.New(), spec)
+			if err != nil {
+				return nil, err
+			}
+		}
+		err = s.CreateAuthenticator(info)
+		if err != nil {
+			return nil, err
+		}
+
+		return &CreateOOBOutput{
+			State: CreateOOBComplete,
+		}, nil
+	}
+	// default:
+	// 	return nil, fmt.Errorf("invalid OOB creation state")
+}
+
+type FinishAddingOOBInput struct {
+	UserID string
+	Token  string
+	OOBOTP string
+}
+
 func (s *Service) StartAddingTOTP(input *StartAddingTOTPInput) (*StartAddingTOTPOutput, error) {
 	totp, err := secretcode.NewTOTPFromRNG()
 	if err != nil {
@@ -525,7 +809,7 @@ func (s *Service) FinishAddingTOTP(input *FinishAddingTOTPInput) (err error) {
 		},
 	}
 
-	info, err := s.Authenticators.New(spec)
+	info, err := s.Authenticators.NewWithAuthenticatorID(uuid.New(), spec)
 	if err != nil {
 		return err
 	}

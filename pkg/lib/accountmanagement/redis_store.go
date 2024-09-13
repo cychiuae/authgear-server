@@ -34,6 +34,13 @@ type GenerateTOTPTokenOptions struct {
 	OTPAuthURI string
 }
 
+type GenerateOOBTokenOptions struct {
+	UserID     string
+	OOBChannel string
+	OOBTarget  string
+	State      string
+}
+
 func (s *RedisStore) GenerateOAuthToken(options GenerateOAuthTokenOptions) (string, error) {
 	tokenString := GenerateToken()
 	tokenHash := HashToken(tokenString)
@@ -89,6 +96,48 @@ func (s *RedisStore) GenerateTOTPToken(options GenerateTOTPTokenOptions) (string
 		UserID:     options.UserID,
 		TOTPSecret: options.TOTPSecret,
 		OTPAuthURI: options.OTPAuthURI,
+		TokenHash:  tokenHash,
+		CreatedAt:  &now,
+		ExpireAt:   &expireAt,
+	}
+
+	tokenBytes, err := json.Marshal(token)
+	if err != nil {
+		return "", err
+	}
+
+	tokenKey := tokenKey(token.AppID, token.TokenHash)
+
+	err = s.Redis.WithConnContext(s.Context, func(conn *goredis.Conn) error {
+		_, err = conn.SetNX(s.Context, tokenKey, tokenBytes, ttl).Result()
+		if errors.Is(err, goredis.Nil) {
+			return errors.New("account management token collision")
+		} else if err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return tokenString, nil
+}
+
+func (s *RedisStore) GenerateOOBToken(options GenerateOOBTokenOptions) (string, error) {
+	tokenString := GenerateToken()
+	tokenHash := HashToken(tokenString)
+
+	now := s.Clock.NowUTC()
+	ttl := duration.UserInteraction
+	expireAt := now.Add(ttl)
+
+	token := &Token{
+		AppID:      string(s.AppID),
+		UserID:     options.UserID,
+		OOBChannel: options.OOBChannel,
+		OOBTarget:  options.OOBTarget,
+		State:      options.State,
 		TokenHash:  tokenHash,
 		CreatedAt:  &now,
 		ExpireAt:   &expireAt,

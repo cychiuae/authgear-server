@@ -23,6 +23,10 @@ type Token struct {
 	// Adding TOTP
 	TOTPSecret string `json:"totp_secret,omitempty"`
 	OTPAuthURI string `json:"otp_auth_uri,omitempty"`
+
+	// Adding OOB
+	OOBChannel string `json:"oob_channel,omitempty"`
+	OOBTarget  string `json:"oob_target,omitempty"`
 }
 
 func (t *Token) CheckStateForOAuth(state string) error {

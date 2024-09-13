@@ -12,6 +12,7 @@ border_color
 box
 call
 cancel
+cases
 check
 check_circle
 class

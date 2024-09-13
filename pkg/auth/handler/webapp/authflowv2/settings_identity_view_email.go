@@ -7,6 +7,8 @@ import (
 	"github.com/authgear/authgear-server/pkg/api/model"
 	handlerwebapp "github.com/authgear/authgear-server/pkg/auth/handler/webapp"
 	"github.com/authgear/authgear-server/pkg/auth/handler/webapp/viewmodels"
+	"github.com/authgear/authgear-server/pkg/auth/webapp"
+	"github.com/authgear/authgear-server/pkg/lib/accountmanagement"
 	"github.com/authgear/authgear-server/pkg/lib/authn/identity"
 	identityservice "github.com/authgear/authgear-server/pkg/lib/authn/identity/service"
 	"github.com/authgear/authgear-server/pkg/lib/config"
@@ -43,6 +45,7 @@ type AuthflowV2SettingsIdentityViewEmailHandler struct {
 	BaseViewModel     *viewmodels.BaseViewModeler
 	Verification      handlerwebapp.SettingsVerificationService
 	Renderer          handlerwebapp.Renderer
+	AccountManagement accountmanagement.Service
 }
 
 func (h *AuthflowV2SettingsIdentityViewEmailHandler) GetData(r *http.Request, rw http.ResponseWriter) (map[string]interface{}, error) {
@@ -114,6 +117,28 @@ func (h *AuthflowV2SettingsIdentityViewEmailHandler) ServeHTTP(w http.ResponseWr
 		}
 
 		h.Renderer.RenderHTML(w, r, TemplateWebSettingsIdentityViewEmailHTML, data)
+		return nil
+	})
+
+	ctrl.PostAction("remove", func() error {
+		userID := session.GetUserID(r.Context())
+		requested := r.Form.Get("q_login_id")
+
+		// Page should be unable to display if q_login_id is not given. But just to be sure, we double check here.
+		if requested == "" {
+			result := webapp.Result{RedirectURI: "/web/not_found"}
+			result.WriteResponse(w, r)
+			return nil
+		}
+
+		err := h.AccountManagement.RemoveIdentityByID(*userID, requested)
+		if err != nil {
+			return err
+		}
+
+		result := webapp.Result{RedirectURI: "/settings/identity/email"}
+
+		result.WriteResponse(w, r)
 		return nil
 	})
 }

@@ -132,7 +132,7 @@ func (s *RedisStore) ConsumeToken(tokenStr string) (*Token, error) {
 		tokenBytes, err = conn.GetDel(s.Context, tokenKey).Bytes()
 		if errors.Is(err, goredis.Nil) {
 			// Token Invalid
-			return ErrOAuthTokenInvalid
+			return ErrAccountManagementTokenInvalid
 		} else if err != nil {
 			return err
 		}

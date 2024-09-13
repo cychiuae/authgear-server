@@ -36,7 +36,7 @@
           {{ template "authflowv2/__settings_action_item.html"
               (dict
                 "IconName" "email"
-                "Label" .OriginalLoginID
+                "Label" (include "inline_breakable" .OriginalLoginID)
                 "Description" (include "settings_identity_email_verification_label" 
                   (dict "Verified" $claim.Verified)
                 )
@@ -60,4 +60,8 @@
   {{ end }}
 </div>
 
+{{ end }}
+
+{{ define "inline_breakable" }}
+  <span style="word-break: break-all;">{{ . }}</span>
 {{ end }}

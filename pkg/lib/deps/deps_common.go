@@ -136,6 +136,7 @@ var CommonDependencySet = wire.NewSet(
 	wire.NewSet(
 		challenge.DependencySet,
 		wire.Bind(new(interaction.ChallengeProvider), new(*challenge.Provider)),
+		wire.Bind(new(accountmanagement.ChallengeProvider), new(*challenge.Provider)),
 		wire.Bind(new(oauthhandler.ChallengeProvider), new(*challenge.Provider)),
 		wire.Bind(new(authenticationflow.ChallengeService), new(*challenge.Provider)),
 	),
@@ -259,6 +260,7 @@ var CommonDependencySet = wire.NewSet(
 
 		identitybiometric.DependencySet,
 		wire.Bind(new(interaction.BiometricIdentityProvider), new(*identitybiometric.Provider)),
+		wire.Bind(new(accountmanagement.BiometricIdentityProvider), new(*identitybiometric.Provider)),
 
 		identitysiwe.DependencySet,
 
@@ -434,6 +436,7 @@ var CommonDependencySet = wire.NewSet(
 		wire.Bind(new(user.VerificationService), new(*verification.Service)),
 		wire.Bind(new(facade.VerificationService), new(*verification.Service)),
 		wire.Bind(new(interaction.VerificationService), new(*verification.Service)),
+		wire.Bind(new(accountmanagement.VerificationService), new(*verification.Service)),
 		wire.Bind(new(userimport.VerifiedClaimService), new(*verification.Service)),
 	),
 
@@ -445,10 +448,12 @@ var CommonDependencySet = wire.NewSet(
 		wire.Bind(new(authenticationflow.OTPCodeService), new(*otp.Service)),
 		wire.Bind(new(webapp.OTPCodeService), new(*otp.Service)),
 		wire.Bind(new(forgotpassword.OTPCodeService), new(*otp.Service)),
+		wire.Bind(new(accountmanagement.OTPCodeService), new(*otp.Service)),
 		wire.Bind(new(interaction.OTPSender), new(*otp.MessageSender)),
 		wire.Bind(new(workflow.OTPSender), new(*otp.MessageSender)),
 		wire.Bind(new(authenticationflow.OTPSender), new(*otp.MessageSender)),
 		wire.Bind(new(forgotpassword.OTPSender), new(*otp.MessageSender)),
+		wire.Bind(new(accountmanagement.OTPSender), new(*otp.MessageSender)),
 	),
 
 	wire.NewSet(
@@ -537,6 +542,7 @@ var CommonDependencySet = wire.NewSet(
 		wire.Bind(new(authenticationflow.PasskeyRequestOptionsService), new(*featurepasskey.RequestOptionsService)),
 		wire.Bind(new(authenticationflow.PasskeyCreationOptionsService), new(*featurepasskey.CreationOptionsService)),
 		wire.Bind(new(authenticationflow.PasskeyService), new(*featurepasskey.Service)),
+		wire.Bind(new(accountmanagement.PasskeyService), new(*featurepasskey.Service)),
 	),
 
 	wire.NewSet(

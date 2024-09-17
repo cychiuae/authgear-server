@@ -73,15 +73,18 @@ func (i *IdentityFacade) CreateIdentity(userID string, identitySpec *identity.Sp
 		// if verified, create identity immediately
 		if len(claims) > 0 && claims[0].Verified {
 			isVerified = true
-			if err = i.Identities.Create(identityInfo); err != nil {
-				if identity.IsErrDuplicatedIdentity(err) {
-					return identityInfo, isVerified, nil
-				}
-				return nil, isVerified, err
+		}
+	}
+
+	if !needVerify || isVerified {
+		if err = i.Identities.Create(identityInfo); err != nil {
+			if identity.IsErrDuplicatedIdentity(err) {
+				return identityInfo, isVerified, nil
 			}
-			if err = i.dispatchIdentityCreatedEvent(identityInfo); err != nil {
-				return nil, isVerified, err
-			}
+			return nil, isVerified, err
+		}
+		if err = i.dispatchIdentityCreatedEvent(identityInfo); err != nil {
+			return nil, isVerified, err
 		}
 	}
 
@@ -127,13 +130,16 @@ func (i *IdentityFacade) UpdateIdentity(userID string, identityID string, identi
 		// if verified, update identity immediately
 		if len(claims) > 0 && claims[0].Verified {
 			isVerified = true
-			if err := i.Identities.Update(oldInfo, newInfo); err != nil {
-				return nil, isVerified, err
-			}
+		}
+	}
 
-			if err = i.dispatchIdentityUpdatedEvent(oldInfo, newInfo); err != nil {
-				return nil, isVerified, err
-			}
+	if !needVerify || isVerified {
+		if err := i.Identities.Update(oldInfo, newInfo); err != nil {
+			return nil, isVerified, err
+		}
+
+		if err = i.dispatchIdentityUpdatedEvent(oldInfo, newInfo); err != nil {
+			return nil, isVerified, err
 		}
 	}
 

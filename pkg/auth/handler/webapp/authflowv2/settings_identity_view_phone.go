@@ -23,6 +23,17 @@ var TemplateWebSettingsIdentityViewPhoneHTML = template.RegisterHTML(
 	handlerwebapp.SettingsComponents...,
 )
 
+var AuthflowV2SettingsUpdateIdentityVerificationPhoneSchema = validation.NewSimpleSchema(`
+	{
+		"type": "object",
+		"properties": {
+			"x_login_id": { "type": "string" },
+			"x_identity_id": { "type": "string" }
+		},
+		"required": ["x_login_id", "x_identity_id"]
+	}
+`)
+
 var AuthflowV2SettingsRemoveIdentityPhoneSchema = validation.NewSimpleSchema(`
 	{
 		"type": "object",
@@ -48,14 +59,15 @@ type AuthflowV2SettingsIdentityViewPhoneViewModel struct {
 }
 
 type AuthflowV2SettingsIdentityViewPhoneHandler struct {
-	Database          *appdb.Handle
-	LoginIDConfig     *config.LoginIDConfig
-	Identities        *identityservice.Service
-	ControllerFactory handlerwebapp.ControllerFactory
-	BaseViewModel     *viewmodels.BaseViewModeler
-	Verification      handlerwebapp.SettingsVerificationService
-	Renderer          handlerwebapp.Renderer
-	AccountManagement accountmanagement.Service
+	Database            *appdb.Handle
+	LoginIDConfig       *config.LoginIDConfig
+	Identities          *identityservice.Service
+	ControllerFactory   handlerwebapp.ControllerFactory
+	BaseViewModel       *viewmodels.BaseViewModeler
+	Verification        handlerwebapp.SettingsVerificationService
+	Renderer            handlerwebapp.Renderer
+	AuthenticatorConfig *config.AuthenticatorConfig
+	AccountManagement   accountmanagement.Service
 }
 
 func (h *AuthflowV2SettingsIdentityViewPhoneHandler) GetData(r *http.Request, rw http.ResponseWriter) (map[string]interface{}, error) {
@@ -146,6 +158,43 @@ func (h *AuthflowV2SettingsIdentityViewPhoneHandler) ServeHTTP(w http.ResponseWr
 
 		result := webapp.Result{RedirectURI: redirectURI.String()}
 
+		result.WriteResponse(w, r)
+		return nil
+	})
+
+	ctrl.PostAction("verify", func() error {
+		loginIDKey := r.Form.Get("q_login_id_key")
+
+		err := AuthflowV2SettingsUpdateIdentityVerificationPhoneSchema.Validator().ValidateValue(handlerwebapp.FormToJSON(r.Form))
+		if err != nil {
+			return err
+		}
+
+		loginID := r.Form.Get("x_login_id")
+		identityID := r.Form.Get("x_identity_id")
+
+		s := session.GetSession(r.Context())
+		output, err := h.AccountManagement.StartUpdateIdentityPhone(s, &accountmanagement.StartUpdateIdentityPhoneInput{
+			LoginID:    loginID,
+			LoginIDKey: loginIDKey,
+			IdentityID: identityID,
+		})
+		if err != nil {
+			return err
+		}
+
+		redirectURI, err := url.Parse(AuthflowV2RouteSettingsIdentityVerifyPhone)
+
+		q := redirectURI.Query()
+		q.Set("q_login_id_key", loginIDKey)
+		q.Set("q_token", output.Token)
+
+		redirectURI.RawQuery = q.Encode()
+		if err != nil {
+			return err
+		}
+
+		result := webapp.Result{RedirectURI: redirectURI.String()}
 		result.WriteResponse(w, r)
 		return nil
 	})

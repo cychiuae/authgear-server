@@ -29,20 +29,32 @@
 {{ end }}
 
 {{ define "settings_identity_phone_verification_button" }}
-  <a class="secondary-btn" href="{{ $.Href }}">
-    {{ translate "v2.page.settings-identity-view-phone.default.button-verify-phone-label" . }}
-  </a>
+  <form
+    method="post"
+    novalidate
+    data-restore-form="false"
+    data-controller="turbo-form"
+    data-action="submit->turbo-form#submitForm"
+  >
+    {{ .CSRFField }}
+    <input type="hidden" name="x_login_id" value="{{ .LoginID }}">
+    <input type="hidden" name="x_identity_id" value="{{ .IdentityID }}">
+    <button type="submit" class="secondary-btn" name="x_action" value="verify">
+      {{ translate "v2.page.settings-identity-view-phone.default.button-verify-phone-label" . }}
+    </button>
+  </form>
 {{ end }}
 
 {{ define "page-content" }}
-
-{{ $IdentityID := $.PhoneIdentity.ID }}
 
 <div class="flex flex-col gap-y-6">
   {{ $extraContent := "" }}
   {{ if not $.Verified }}
     {{ $extraContent = (include "settings_identity_phone_verification_button" (dict
-        "Href" (call $.MakeURL "/settings/identity/verify_phone" "q_identity_id" $IdentityID "q_login_id_key" $.LoginIDKey)
+        "CSRFField" $.CSRFField
+        "Verified" false
+        "LoginID" $.PhoneIdentity.LoginID
+        "IdentityID" $.PhoneIdentity.ID
       ))
     }}
   {{ end }}
@@ -55,7 +67,7 @@
           (dict "Verified" $.Verified)
         )
         "ActionButton" (include "settings_identity_phone_edit_button"
-          (dict "Href" (call $.MakeURL "/settings/identity/edit_phone" "q_identity_id" $IdentityID "q_login_id_key" $.LoginIDKey))
+          (dict "Href" (call $.MakeURL "/settings/identity/edit_phone" "q_identity_id" $.PhoneIdentity.ID "q_login_id_key" $.LoginIDKey))
         )
         "ExtraContent" $extraContent
       )

@@ -24,6 +24,17 @@ var TemplateWebSettingsIdentityViewEmailHTML = template.RegisterHTML(
 	handlerwebapp.SettingsComponents...,
 )
 
+var AuthflowV2SettingsIdentityUpdateVerificationEmailSchema = validation.NewSimpleSchema(`
+	{
+		"type": "object",
+		"properties": {
+			"x_login_id": { "type": "string" },
+			"x_identity_id": { "type": "string" }
+		},
+		"required": ["x_login_id", "x_identity_id"]
+	}
+`)
+
 var AuthflowV2SettingsRemoveIdentityEmailSchema = validation.NewSimpleSchema(`
 	{
 		"type": "object",
@@ -147,6 +158,43 @@ func (h *AuthflowV2SettingsIdentityViewEmailHandler) ServeHTTP(w http.ResponseWr
 
 		result := webapp.Result{RedirectURI: redirectURI.String()}
 
+		result.WriteResponse(w, r)
+		return nil
+	})
+
+	ctrl.PostAction("verify", func() error {
+		loginIDKey := r.Form.Get("q_login_id_key")
+
+		err := AuthflowV2SettingsIdentityUpdateVerificationEmailSchema.Validator().ValidateValue(handlerwebapp.FormToJSON(r.Form))
+		if err != nil {
+			return err
+		}
+
+		loginID := r.Form.Get("x_login_id")
+		identityID := r.Form.Get("x_identity_id")
+
+		s := session.GetSession(r.Context())
+		output, err := h.AccountManagement.StartUpdateIdentityEmail(s, &accountmanagement.StartUpdateIdentityEmailInput{
+			LoginID:    loginID,
+			LoginIDKey: loginIDKey,
+			IdentityID: identityID,
+		})
+		if err != nil {
+			return err
+		}
+
+		redirectURI, err := url.Parse(AuthflowV2RouteSettingsIdentityVerifyEmail)
+
+		q := redirectURI.Query()
+		q.Set("q_login_id_key", loginIDKey)
+		q.Set("q_token", output.Token)
+
+		redirectURI.RawQuery = q.Encode()
+		if err != nil {
+			return err
+		}
+
+		result := webapp.Result{RedirectURI: redirectURI.String()}
 		result.WriteResponse(w, r)
 		return nil
 	})

@@ -182,8 +182,19 @@ func (s *Service) StartAddIdentityEmail(resolvedSession session.ResolvedSession,
 			return err
 		}
 		needVerification = !verified
-
-		if !verified {
+		if needVerification {
+			channel, target := info.LoginID.ToChannelTarget()
+			err = s.sendOTPCode(userID, channel, target, false)
+			if err != nil {
+				return err
+			}
+			token, err = s.Store.GenerateToken(GenerateTokenOptions{
+				UserID: userID,
+				Email:  info.LoginID.LoginID,
+			})
+			if err != nil {
+				return err
+			}
 			return nil
 		}
 
@@ -201,21 +212,6 @@ func (s *Service) StartAddIdentityEmail(resolvedSession session.ResolvedSession,
 	})
 	if err != nil {
 		return nil, err
-	}
-
-	if needVerification {
-		channel, target := info.LoginID.ToChannelTarget()
-		err = s.sendOTPCode(userID, channel, target, false)
-		if err != nil {
-			return nil, err
-		}
-		token, err = s.Store.GenerateToken(GenerateTokenOptions{
-			UserID: userID,
-			Email:  info.LoginID.LoginID,
-		})
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	return &StartAddIdentityEmailOutput{
@@ -307,7 +303,8 @@ type StartUpdateIdentityEmailInput struct {
 }
 
 type StartUpdateIdentityEmailOutput struct {
-	IdentityInfo     *identity.Info
+	OldInfo          *identity.Info
+	NewInfo          *identity.Info
 	NeedVerification bool
 	Token            string
 }
@@ -322,7 +319,8 @@ func (s *Service) StartUpdateIdentityEmail(resolvedSession session.ResolvedSessi
 		return nil, err
 	}
 
-	var info *identity.Info
+	var oldInfo *identity.Info
+	var newInfo *identity.Info
 	var token string
 	var needVerification bool
 	err = s.Database.WithTx(func() error {
@@ -330,7 +328,6 @@ func (s *Service) StartUpdateIdentityEmail(resolvedSession session.ResolvedSessi
 		if err != nil {
 			return err
 		}
-		info = newInfo
 
 		verified, err := s.CheckIdentityVerified(newInfo)
 		if err != nil {
@@ -338,7 +335,20 @@ func (s *Service) StartUpdateIdentityEmail(resolvedSession session.ResolvedSessi
 		}
 		needVerification = !verified
 
-		if !verified {
+		if needVerification {
+			channel, target := newInfo.LoginID.ToChannelTarget()
+			err = s.sendOTPCode(userID, channel, target, false)
+			if err != nil {
+				return err
+			}
+			token, err = s.Store.GenerateToken(GenerateTokenOptions{
+				UserID:     userID,
+				Email:      newInfo.LoginID.LoginID,
+				IdentityID: newInfo.ID,
+			})
+			if err != nil {
+				return err
+			}
 			return nil
 		}
 
@@ -358,24 +368,9 @@ func (s *Service) StartUpdateIdentityEmail(resolvedSession session.ResolvedSessi
 		return nil, err
 	}
 
-	if needVerification {
-		channel, target := info.LoginID.ToChannelTarget()
-		err = s.sendOTPCode(userID, channel, target, false)
-		if err != nil {
-			return nil, err
-		}
-		token, err = s.Store.GenerateToken(GenerateTokenOptions{
-			UserID:     userID,
-			Email:      info.LoginID.LoginID,
-			IdentityID: info.ID,
-		})
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	return &StartUpdateIdentityEmailOutput{
-		IdentityInfo:     info,
+		OldInfo:          oldInfo,
+		NewInfo:          newInfo,
 		NeedVerification: needVerification,
 		Token:            token,
 	}, nil
@@ -387,7 +382,8 @@ type ResumeUpdateIdentityEmailInput struct {
 }
 
 type ResumeUpdateIdentityEmailOutput struct {
-	IdentityInfo *identity.Info
+	OldInfo *identity.Info
+	NewInfo *identity.Info
 }
 
 func (s *Service) ResumeUpdateIdentityEmail(resolvedSession session.ResolvedSession, tokenString string, input *ResumeUpdateIdentityEmailInput) (output *ResumeUpdateIdentityEmailOutput, err error) {
@@ -417,24 +413,24 @@ func (s *Service) ResumeUpdateIdentityEmail(resolvedSession session.ResolvedSess
 		return
 	}
 
-	var info *identity.Info
+	var oldInfo *identity.Info
+	var newInfo *identity.Info
 	err = s.Database.WithTx(func() error {
-		oldInfo, newInfo, err := s.prepareUpdateIdentity(userID, token.Identity.IdentityID, spec)
+		oldInfo, newInfo, err = s.prepareUpdateIdentity(userID, token.Identity.IdentityID, spec)
 		if err != nil {
 			return err
 		}
-		info = newInfo
 
 		err = s.updateIdentity(oldInfo, newInfo)
 		if err != nil {
 			return err
 		}
 
-		claimName, ok := model.GetLoginIDKeyTypeClaim(info.LoginID.LoginIDType)
+		claimName, ok := model.GetLoginIDKeyTypeClaim(newInfo.LoginID.LoginIDType)
 		if !ok {
 			panic(fmt.Errorf("accountmanagement: unexpected login ID key"))
 		}
-		err = s.markClaimVerified(userID, claimName, info.LoginID.LoginID)
+		err = s.markClaimVerified(userID, claimName, newInfo.LoginID.LoginID)
 		if err != nil {
 			return err
 		}
@@ -452,9 +448,52 @@ func (s *Service) ResumeUpdateIdentityEmail(resolvedSession session.ResolvedSess
 	}
 
 	output = &ResumeUpdateIdentityEmailOutput{
-		IdentityInfo: info,
+		OldInfo: oldInfo,
+		NewInfo: newInfo,
 	}
 	return
+}
+
+type ResumeAddOrUpdateIdentityEmailInput struct {
+	LoginIDKey string
+	Code       string
+}
+
+type ResumeAddOrUpdateIdentityEmailOutput struct {
+	OldInfo *identity.Info
+	NewInfo *identity.Info
+}
+
+func (s *Service) ResumeAddOrUpdateIdentityEmail(resolvedSession session.ResolvedSession, tokenString string, input *ResumeAddOrUpdateIdentityEmailInput) (*ResumeAddOrUpdateIdentityEmailOutput, error) {
+	token, err := s.Store.GetToken(tokenString)
+	if err != nil {
+		return nil, err
+	}
+
+	if token.Identity.IdentityID == "" {
+		output, err := s.ResumeAddIdentityEmail(resolvedSession, tokenString, &ResumeAddIdentityEmailInput{
+			LoginIDKey: input.LoginIDKey,
+			Code:       input.Code,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return &ResumeAddOrUpdateIdentityEmailOutput{
+			NewInfo: output.IdentityInfo,
+		}, nil
+	}
+
+	output, err := s.ResumeUpdateIdentityEmail(resolvedSession, tokenString, &ResumeUpdateIdentityEmailInput{
+		LoginIDKey: input.LoginIDKey,
+		Code:       input.Code,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &ResumeAddOrUpdateIdentityEmailOutput{
+		OldInfo: output.OldInfo,
+		NewInfo: output.NewInfo,
+	}, nil
 }
 
 type DeleteIdentityEmailInput struct {
@@ -531,7 +570,19 @@ func (s *Service) StartAddIdentityPhone(resolvedSession session.ResolvedSession,
 		}
 		needVerification = !verified
 
-		if !verified {
+		if needVerification {
+			channel, target := info.LoginID.ToChannelTarget()
+			err = s.sendOTPCode(userID, channel, target, false)
+			if err != nil {
+				return err
+			}
+			token, err = s.Store.GenerateToken(GenerateTokenOptions{
+				UserID:      userID,
+				PhoneNumber: info.LoginID.LoginID,
+			})
+			if err != nil {
+				return err
+			}
 			return nil
 		}
 
@@ -549,21 +600,6 @@ func (s *Service) StartAddIdentityPhone(resolvedSession session.ResolvedSession,
 	})
 	if err != nil {
 		return nil, err
-	}
-
-	if needVerification {
-		channel, target := info.LoginID.ToChannelTarget()
-		err = s.sendOTPCode(userID, channel, target, false)
-		if err != nil {
-			return nil, err
-		}
-		token, err = s.Store.GenerateToken(GenerateTokenOptions{
-			UserID:      userID,
-			PhoneNumber: info.LoginID.LoginID,
-		})
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	return &StartAddIdentityPhoneOutput{
@@ -685,8 +721,20 @@ func (s *Service) StartUpdateIdentityPhone(resolvedSession session.ResolvedSessi
 			return err
 		}
 		needVerification = !verified
-
-		if !verified {
+		if needVerification {
+			channel, target := info.LoginID.ToChannelTarget()
+			err = s.sendOTPCode(userID, channel, target, false)
+			if err != nil {
+				return err
+			}
+			token, err = s.Store.GenerateToken(GenerateTokenOptions{
+				UserID:      userID,
+				PhoneNumber: info.LoginID.LoginID,
+				IdentityID:  info.ID,
+			})
+			if err != nil {
+				return err
+			}
 			return nil
 		}
 
@@ -704,22 +752,6 @@ func (s *Service) StartUpdateIdentityPhone(resolvedSession session.ResolvedSessi
 	})
 	if err != nil {
 		return nil, err
-	}
-
-	if needVerification {
-		channel, target := info.LoginID.ToChannelTarget()
-		err = s.sendOTPCode(userID, channel, target, false)
-		if err != nil {
-			return nil, err
-		}
-		token, err = s.Store.GenerateToken(GenerateTokenOptions{
-			UserID:      userID,
-			PhoneNumber: info.LoginID.LoginID,
-			IdentityID:  info.ID,
-		})
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	return &StartUpdateIdentityPhoneOutput{

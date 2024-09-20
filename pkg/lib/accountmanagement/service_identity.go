@@ -845,7 +845,7 @@ type DeleteIdentityPhoneOutput struct {
 	IdentityInfo *identity.Info
 }
 
-func (s *Service) DeleteIdentityPhone(resolvedSession session.ResolvedSession, input *DeleteIdentityEmailInput) (*DeleteIdentityPhoneOutput, error) {
+func (s *Service) DeleteIdentityPhone(resolvedSession session.ResolvedSession, input *DeleteIdentityPhoneInput) (*DeleteIdentityPhoneOutput, error) {
 	userID := resolvedSession.GetAuthenticationInfo().UserID
 	identityID := input.IdentityID
 

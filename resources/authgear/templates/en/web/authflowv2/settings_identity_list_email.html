@@ -58,6 +58,31 @@
       {{ translate "v2.page.settings-identity-list-email.default.button-add-email-label" nil }}
     </a>
   {{ end }}
+
+  {{ if gt (len $.EmailIdentities) (1) }}
+  {{ if $.PrimaryEmail }}
+    <div class="mt-5">
+      <div class="settings-title">
+        {{ translate "v2.page.settings-identity-list-email.default.primary-email-label" . }}
+      </div>
+      {{ template "authflowv2/__settings_action_item.html"
+        (dict
+          "IconName" "email"
+          "Label" .PrimaryEmail.OriginalLoginID
+          "ActionButton" (include "settings_identity_email_change_button"
+            (dict "Href" (call $.MakeURL "/settings/identity/change_primary_email" "q_login_id_key" $.LoginIDKey))
+          )
+        )
+      }}
+    </div>
+  {{ end }}
+  {{ end }}
 </div>
 
+{{ end }}
+
+{{ define "settings_identity_email_change_button" }}
+  <a class="settings-link-btn" href="{{ $.Href }}">
+    {{ translate "v2.page.settings-identity-list-email.default.button-change-primary-email-label" . }}
+  </a>
 {{ end }}

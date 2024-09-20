@@ -58,6 +58,29 @@
       {{ translate "v2.page.settings-identity-list-phone.default.button-add-phone-label" nil }}
     </a>
   {{ end }}
+
+  {{ if and ($.PrimaryEmail) (gt (len $.PhoneIdentities) (1)) }}
+    <span>
+      <div class="settings-title">
+        {{ translate "v2.page.settings-identity-list-phone.default.primary-phone-label" . }}
+      </div>
+      {{ template "authflowv2/__settings_action_item.html"
+        (dict
+          "IconName" "phone_iphone"
+          "Label" .PrimaryPhone.OriginalLoginID
+          "ActionButton" (include "settings_identity_phone_change_button"
+            (dict "Href" (call $.MakeURL "/settings/identity/change_primary_phone" "q_login_id_key" $.LoginIDKey "q_identity_id" .PrimaryPhone.ID))
+          )
+        )
+      }}
+    </div>
+  {{ end }}
 </div>
 
+{{ end }}
+
+{{ define "settings_identity_phone_change_button" }}
+  <a class="settings-link-btn" href="{{ $.Href }}">
+    {{ translate "v2.page.settings-identity-list-phone.default.button-change-primary-phone-label" . }}
+  </a>
 {{ end }}

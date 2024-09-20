@@ -177,7 +177,7 @@ func (s *Service) StartAddIdentityEmail(resolvedSession session.ResolvedSession,
 			return err
 		}
 
-		verified, err := s.checkIdentityVerified(info)
+		verified, err := s.CheckIdentityVerified(info)
 		if err != nil {
 			return err
 		}
@@ -332,7 +332,7 @@ func (s *Service) StartUpdateIdentityEmail(resolvedSession session.ResolvedSessi
 		}
 		info = newInfo
 
-		verified, err := s.checkIdentityVerified(newInfo)
+		verified, err := s.CheckIdentityVerified(newInfo)
 		if err != nil {
 			return err
 		}
@@ -525,7 +525,7 @@ func (s *Service) StartAddIdentityPhone(resolvedSession session.ResolvedSession,
 			return err
 		}
 
-		verified, err := s.checkIdentityVerified(info)
+		verified, err := s.CheckIdentityVerified(info)
 		if err != nil {
 			return err
 		}
@@ -680,7 +680,7 @@ func (s *Service) StartUpdateIdentityPhone(resolvedSession session.ResolvedSessi
 		}
 		info = newInfo
 
-		verified, err := s.checkIdentityVerified(newInfo)
+		verified, err := s.CheckIdentityVerified(newInfo)
 		if err != nil {
 			return err
 		}
@@ -1083,7 +1083,7 @@ func (s *Service) prepareDeleteIdentity(userID string, identityID string) (*iden
 	return info, nil
 }
 
-func (s *Service) checkIdentityVerified(info *identity.Info) (bool, error) {
+func (s *Service) CheckIdentityVerified(info *identity.Info) (bool, error) {
 	claims, err := s.Verification.GetIdentityVerificationStatus(info)
 	if err != nil {
 		return false, err

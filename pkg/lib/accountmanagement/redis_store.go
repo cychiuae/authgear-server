@@ -22,8 +22,9 @@ type RedisStore struct {
 }
 
 type GenerateTokenOptions struct {
+	UserID string
+
 	// OAuth
-	UserID      string
 	Alias       string
 	MaybeState  string
 	RedirectURI string
@@ -46,7 +47,7 @@ func (s *RedisStore) GenerateToken(options GenerateTokenOptions) (string, error)
 	ttl := duration.UserInteraction
 	expireAt := now.Add(ttl)
 
-	IdentityToken := &IdentityToken{
+	tokenIdentity := &TokenIdentity{
 		IdentityID:  options.IdentityID,
 		PhoneNumber: options.PhoneNumber,
 		Email:       options.Email,
@@ -64,8 +65,8 @@ func (s *RedisStore) GenerateToken(options GenerateTokenOptions) (string, error)
 		State:       options.MaybeState,
 		RedirectURI: options.RedirectURI,
 
-		// IdentityToken
-		IdentityToken: IdentityToken,
+		// Identity
+		Identity: tokenIdentity,
 	}
 
 	tokenBytes, err := json.Marshal(token)
@@ -149,6 +150,14 @@ func (s *RedisStore) ConsumeToken(tokenStr string) (*Token, error) {
 	}
 
 	return &token, nil
+}
+
+func (s *RedisStore) ConsumeToken_OAuth(tokenStr string) (*Token, error) {
+	token, err := s.ConsumeToken(tokenStr)
+	if errors.Is(err, ErrAccountManagementTokenInvalid) {
+		return token, ErrOAuthTokenInvalid
+	}
+	return token, err
 }
 
 func tokenKey(appID string, tokenHash string) string {

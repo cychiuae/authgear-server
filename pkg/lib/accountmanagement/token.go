@@ -20,11 +20,11 @@ type Token struct {
 	RedirectURI string `json:"redirect_uri,omitempty"`
 	State       string `json:"state,omitempty"`
 
-	// Adding IdentityToken
-	IdentityToken *IdentityToken `json:"identity_token,omitempty"`
+	// Adding Identity
+	Identity *TokenIdentity `json:"token_identity,omitempty"`
 }
 
-type IdentityToken struct {
+type TokenIdentity struct {
 	IdentityID  string `json:"identity_id,omitempty"`
 	PhoneNumber string `json:"phone_number,omitempty"`
 	Email       string `json:"email,omitempty"`
@@ -36,6 +36,13 @@ func (t *Token) CheckUser(userID string) error {
 	}
 
 	return ErrAccountManagementTokenNotBoundToUser
+}
+
+func (t *Token) CheckUser_OAuth(userID string) error {
+	if subtle.ConstantTimeCompare([]byte(t.UserID), []byte(userID)) == 1 {
+		return nil
+	}
+	return ErrOAuthTokenNotBoundToUser
 }
 
 func (t *Token) CheckState(state string) error {

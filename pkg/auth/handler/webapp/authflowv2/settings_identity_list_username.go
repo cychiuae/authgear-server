@@ -3,6 +3,7 @@ package authflowv2
 import (
 	"net/http"
 
+	"github.com/authgear/authgear-server/pkg/api/model"
 	handlerwebapp "github.com/authgear/authgear-server/pkg/auth/handler/webapp"
 	"github.com/authgear/authgear-server/pkg/auth/handler/webapp/viewmodels"
 	"github.com/authgear/authgear-server/pkg/lib/authn/identity"
@@ -32,13 +33,12 @@ type AuthflowV2SettingsIdentityListUsernameViewModel struct {
 }
 
 type AuthflowV2SettingsIdentityListUsernameHandler struct {
-	Database                 *appdb.Handle
-	LoginIDConfig            *config.LoginIDConfig
-	Identities               *identityservice.Service
-	ControllerFactory        handlerwebapp.ControllerFactory
-	BaseViewModel            *viewmodels.BaseViewModeler
-	SettingsProfileViewModel *viewmodels.SettingsProfileViewModeler
-	Renderer                 handlerwebapp.Renderer
+	Database          *appdb.Handle
+	LoginIDConfig     *config.LoginIDConfig
+	Identities        *identityservice.Service
+	ControllerFactory handlerwebapp.ControllerFactory
+	BaseViewModel     *viewmodels.BaseViewModeler
+	Renderer          handlerwebapp.Renderer
 }
 
 func (h *AuthflowV2SettingsIdentityListUsernameHandler) GetData(w http.ResponseWriter, r *http.Request) (map[string]interface{}, error) {
@@ -56,8 +56,10 @@ func (h *AuthflowV2SettingsIdentityListUsernameHandler) GetData(w http.ResponseW
 
 	var usernameIdentities []*identity.LoginID
 	for _, identity := range identities {
-		if loginIDKey == "" || identity.LoginIDKey == loginIDKey {
-			usernameIdentities = append(usernameIdentities, identity)
+		if identity.LoginIDType == model.LoginIDKeyTypeUsername {
+			if loginIDKey == "" || identity.LoginIDKey == loginIDKey {
+				usernameIdentities = append(usernameIdentities, identity)
+			}
 		}
 	}
 

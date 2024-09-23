@@ -99,6 +99,9 @@ const (
 	AuthflowV2RouteSettingsIdentityVerifyPhone        = "/settings/identity/verify_phone"
 
 	AuthflowV2RouteSettingsIdentityListUsername = "/settings/identity/username"
+	AuthflowV2RouteSettingsIdentityNewUsername  = "/settings/identity/new_username"
+	AuthflowV2RouteSettingsIdentityViewUsername = "/settings/identity/view_username"
+	AuthflowV2RouteSettingsIdentityEditUsername = "/settings/identity/edit_username"
 )
 
 type AuthflowV2NavigatorEndpointsProvider interface {

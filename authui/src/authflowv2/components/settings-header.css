@@ -29,7 +29,7 @@
 
   .settings-header__back-button {
     @apply absolute;
-    @apply right-16;
+    @apply ltr:right-16 rtl:left-16;
     @apply top-5.5;
     @apply secondary-btn;
   }

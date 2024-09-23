@@ -178,10 +178,24 @@
     </div>
   </div>
 
+  {{/* NOTE: The following code contains duplicated logic __brand_logo.html */}}
+  {{ $light := "" }}
+  {{ $dark := "" }}
+  {{ if $.LightThemeEnabled }}
+    {{ $light = call $.StaticAssetURL "app-logo" }}
+  {{ end }}
+  {{ if $.DarkThemeEnabled }}
+    {{ $dark = call $.StaticAssetURL "app-logo-dark" }}
+  {{ end }}
   {{ if and $.ClientURI (not $.IsNativePlatform) }}
   <div class="flex justify-center">
     <a
-      class="secondary-btn w-full tablet:max-w-86"
+      class="secondary-btn w-full
+      {{ if and $light $dark }}
+        tablet:hidden
+      {{ else }}
+        tablet:max-w-86
+      {{ end }}"
       href="{{ $.ClientURI }}"
     >
       <div class="flex gap-2 items-center">

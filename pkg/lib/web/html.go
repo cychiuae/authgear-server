@@ -73,7 +73,9 @@ var TemplateWebAuthflowV2WatermarkHTML = template.RegisterHTML("web/authflowv2/_
 var TemplateWebAuthflowV2CSRFErrorPageLayoutHTML = template.RegisterHTML("web/authflowv2/__csrf_error_page_layout.html")
 var TemplateWebAuthflowV2SettingsHeaderHTML = template.RegisterHTML("web/authflowv2/__settings_header.html")
 var TemplateWebAuthflowV2SettingsItemHTML = template.RegisterHTML("web/authflowv2/__settings_item.html")
+var TemplateWebAuthflowV2SettingsActionItemHTML = template.RegisterHTML("web/authflowv2/__settings_action_item.html")
 var TemplateWebAuthflowV2SettingsRadioHTML = template.RegisterHTML("web/authflowv2/__settings_radio.html")
+var TemplateWebAuthflowV2SettingsDialog = template.RegisterHTML("web/authflowv2/__settings_dialog.html")
 
 var TemplateWebSettingsV2PageFrameHTML = template.RegisterHTML("web/authflowv2/__settings_page_frame.html")
 var TemplateWebAuthflowV2NavBar = template.RegisterHTML("web/authflowv2/__navbar.html")
@@ -145,11 +147,13 @@ var BaseComponentsHTML = []*template.HTML{
 	TemplateWebAuthflowV2BrandLogoHTML,
 	TemplateWebAuthflowV2SettingsHeaderHTML,
 	TemplateWebAuthflowV2SettingsItemHTML,
+	TemplateWebAuthflowV2SettingsActionItemHTML,
 	TemplateWebAuthflowV2NavBar,
 	TemplateWebAuthflowV2DateInputHTML,
 	TemplateWebAuthflowV2UserProfilePic,
 	TemplateWebAuthflowV2SettingsRadioHTML,
 	TemplateWebAuthflowV2SettingsTextInput,
+	TemplateWebAuthflowV2SettingsDialog,
 	TemplateWebAuthflowV2LocaleInputHTML,
 	TemplateWebAuthflowV2TimezoneInput,
 	TemplateWebAuthflowV2CountryInput,

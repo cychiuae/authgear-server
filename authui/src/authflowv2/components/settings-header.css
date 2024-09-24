@@ -9,7 +9,9 @@
 
   .settings-header {
     @apply hidden;
+    @apply relative;
     @apply items-center;
+    @apply justify-center;
     @apply w-full;
     @apply h-25;
     @apply py-5;
@@ -18,10 +20,17 @@
 
   /* The light logo is visible only in light mode and src is non-empty. */
   :root:not(.dark) .shadow-logo.light:not([data-src=""]) .settings-header {
-    @apply tablet:flex tablet:flex-col;
+    @apply tablet:flex;
   }
   /* The dark logo is visible only in dark mode and src is non-empty. */
   :root.dark .shadow-logo.dark:not([data-src=""]) .settings-header {
-    @apply tablet:flex tablet:flex-col;
+    @apply tablet:flex;
+  }
+
+  .settings-header__back-button {
+    @apply absolute;
+    @apply ltr:right-16 rtl:left-16;
+    @apply top-5.5;
+    @apply secondary-btn;
   }
 }

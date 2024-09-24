@@ -9,6 +9,18 @@
     .
   )
 }}
+{{ if and $.ClientURI (not $.IsNativePlatform) }}
+  <a href="{{ $.ClientURI }}" class="settings-header__back-button">
+    <div class="flex gap-2 items-center">
+      <i class="alternative-icon material-icons">
+        home
+      </i>
+      <p class="hidden desktop:inline">
+        {{ include "v2.page.settings.default.button-label-back-to-app" . }}
+      </p>
+    </div>
+  </a>
+{{ end }}
 </div>
 
 {{ end }}
